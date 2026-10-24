@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>播客工作台 · 文稿编辑室静态交互稿</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="preview-toolbar" aria-label="设计状态预览">
+    <span class="preview-label">静态交互稿</span>
+    <div class="state-options" role="group" aria-label="切换界面状态">
+      <button type="button" data-state="empty" aria-pressed="true">空白</button>
+      <button type="button" data-state="running" aria-pressed="false">制作中</button>
+      <button type="button" data-state="script" aria-pressed="false">脚本就绪</button>
+      <button type="button" data-state="audio" aria-pressed="false">音频就绪</button>
+      <button type="button" data-state="failed" aria-pressed="false">失败重试</button>
+      <button type="button" data-state="stale" aria-pressed="false">旧版音频</button>
+    </div>
+    <span class="offline-label"><i aria-hidden="true"></i>未连接后端</span>
+  </div>
+  <header class="site-header">
+    <a class="brand" href="#workspace" aria-label="播客工作台">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <span>播客工作台</span>
+    </a>
+    <nav aria-label="主导航"><a class="nav-current" href="#workspace">制作节目</a><button type="button" id="help-open">使用说明</button></nav>
+    <button type="button" class="new-button" id="new-program"><span aria-hidden="true">＋</span>新建节目</button>
+  </header>
+  <main id="workspace">
+    <section class="hero" aria-labelledby="page-title">
+      <h1 id="page-title">从一篇文章，到两个人的声音</h1>
+      <p>把值得理解的内容，讲成值得听的对话。</p>
+    </section>
+    <div class="workspace-grid">
+      <section class="material-panel" aria-labelledby="material-heading">
+        <div class="section-top"><h2 id="material-heading">从你的材料开始</h2><button class="link-button" type="button" id="use-example">使用示例材料</button></div>
+        <form id="material-form" novalidate>
+          <label class="field-label" for="source-text">原文材料</label>
+          <textarea id="source-text" rows="8" aria-describedby="source-hint source-error" placeholder="粘贴一篇文章、一段笔记，或你想聊的内容……"></textarea>
+          <div class="material-meta"><span id="source-hint">以原文为依据，保留事实与观点。</span><span><span id="character-count">0</span> / 20,000</span></div>
+          <p class="field-error" id="source-error" role="alert" hidden></p>
+          <div class="settings-grid">
+            <label class="field-label" for="audience">面向谁讲<select id="audience"><option value="general">普通大众</option><option value="beginner">初学者</option><option value="professional">专业听众</option></select></label>
+            <label class="field-label" for="style">节目风格<select id="style"><option value="casual">轻松访谈</option><option value="educational">知识讲解</option></select></label>
+          </div>
+          <fieldset class="duration-field"><legend>目标时长</legend><div class="duration-options"><label><input type="radio" name="minutes" value="2"><span>约 2 分钟</span></label><label><input type="radio" name="minutes" value="3" checked><span>约 3 分钟</span></label><label><input type="radio" name="minutes" value="5"><span>约 5 分钟</span></label></div><p class="tiny-note">以内容完整为先，实际时长由成品决定。</p></fieldset>
+          <fieldset class="voices-field"><legend>对话的两种声音</legend><div class="voice-options"><div class="voice-option"><span class="role-dot" aria-hidden="true">主</span><label for="host-voice">主持人<select id="host-voice"><option value="Cherry">芊悦 Cherry</option><option value="Serena">苏瑶 Serena</option><option value="Ethan">晨煦 Ethan</option></select></label></div><div class="voice-option"><span class="role-dot guest-dot" aria-hidden="true">嘉</span><label for="guest-voice">嘉宾<select id="guest-voice"><option value="Ethan">晨煦 Ethan</option><option value="Cherry">芊悦 Cherry</option><option value="Serena">苏瑶 Serena</option></select></label></div></div><p class="field-error" id="voice-error" role="alert" hidden>请为主持人和嘉宾选择不同音色。</p></fieldset>
+          <div class="create-actions"><label class="preview-check"><input id="preview-script" type="checkbox"><span>先预览脚本，再生成音频</span></label><button class="primary-button" id="create-button" type="submit" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg><span id="create-label">生成双人播客</span></button><p class="tiny-note centered">生成后，可通过对话继续修改。</p></div>
+        </form>
+      </section>
+      <section class="output-column" aria-labelledby="output-heading">
+        <div class="section-top output-top"><h2 id="output-heading">你的节目</h2><span class="state-badge" id="state-badge">等待创作</span></div>
+        <div class="empty-output" id="empty-output"><div class="empty-art" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><i></i></div><h3>让文字，慢慢有了声音</h3><p>把材料放在左边。<br>你的对话脚本与播客，会在这里相遇。</p><button class="secondary-button" type="button" id="empty-example">用示例试试</button><div class="empty-flow"><span>整理材料</span><span aria-hidden="true">／</span><span>编写与审校</span><span aria-hidden="true">／</span><span>双人配音</span></div></div>
+        <div class="running-output" id="running-output" hidden><div class="running-heading"><span class="working-mark" aria-hidden="true"></span><div><h3 id="running-title">正在打磨对话</h3><p>先讲清楚内容，再让两种声音接住它。</p></div></div><ol class="stage-list"><li class="complete"><span class="stage-number">1</span><div><b>整理材料</b><p>提取关键事实与讨论提纲</p></div><span class="stage-word">已完成</span></li><li class="complete"><span class="stage-number">2</span><div><b>编写对话</b><p>让主持人与嘉宾自然衔接</p></div><span class="stage-word">已完成</span></li><li class="current"><span class="stage-number">3</span><div><b>内容审校</b><p>核对依据，调整表达和节奏</p></div><span class="stage-word">进行中</span></li><li><span class="stage-number">4</span><div><b>分角色配音</b><p>为主持人和嘉宾生成语音</p></div><span class="stage-word">等待</span></li><li><span class="stage-number">5</span><div><b>合成音频</b><p>按脚本顺序组成完整节目</p></div><span class="stage-word">等待</span></li></ol><p class="state-explanation">进度布局示意，不代表实际任务正在运行。</p></div>
+        <div class="result-output" id="result-output" hidden>
+          <div class="feedback-banner error-banner" id="failure-banner" role="alert" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 3v1"/></svg><div><b>配音暂未完成，脚本已保留</b><p>检查服务配置或稍后重试，无需重新编写脚本。</p><button type="button" class="link-button" id="retry-audio">重新生成音频</button></div></div>
+          <div class="episode-heading"><span class="episode-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><div><h3>给阅读，换一种打开方式</h3><p>双人对话<span aria-hidden="true"> · </span><span id="episode-style">轻松访谈</span><span aria-hidden="true"> · </span><span id="episode-audience">普通大众</span></p></div></div>
+          <div class="feedback-banner stale-banner" id="stale-banner" hidden><div><b>此音频对应上一版脚本</b><p>当前脚本为第 2 版，已有音频对应第 1 版。</p></div><button type="button" class="secondary-button" id="render-new-audio">生成新版音频</button></div>
+          <div class="audio-panel" id="audio-panel" hidden><div class="audio-topline"><span>节目音频</span><span class="tiny-note">设计稿，无真实音频</span></div><div class="waveform" id="waveform" aria-hidden="true"></div><audio id="program-audio" controls preload="none" aria-label="播客音频，当前为无音源的设计占位"></audio><div class="download-row"><span>实际时长将在生成后显示</span><button class="link-button" type="button" disabled aria-describedby="audio-placeholder-note">下载音频</button></div><p id="audio-placeholder-note" class="sr-only">设计稿未生成音频，不能播放或下载。</p></div>
+          <div class="script-ready-callout" id="script-ready-callout" hidden><span>脚本已备好，可以先修改，再生成音频。</span><button type="button" class="secondary-button" id="render-audio">生成音频</button></div>
+          <div class="script-section"><div class="script-tabs" role="tablist" aria-label="节目内容"><button id="tab-script" type="button" role="tab" aria-controls="panel-script" aria-selected="true" tabindex="0" data-tab="script">对话脚本</button><button id="tab-outline" type="button" role="tab" aria-controls="panel-outline" aria-selected="false" tabindex="-1" data-tab="outline">内容提纲</button><button id="tab-review" type="button" role="tab" aria-controls="panel-review" aria-selected="false" tabindex="-1" data-tab="review">审校摘要</button><span class="revision-label" id="revision-label">第 1 版</span></div>
+            <div role="tabpanel" id="panel-script" aria-labelledby="tab-script"><div class="script-turn"><span class="speaker-label">主持人</span><p>如果一天只有零碎的十几分钟，我们还能认真读完一篇文章吗？</p></div><div class="script-turn guest-turn"><span class="speaker-label">嘉宾</span><p>可以换一种方式。把文章里的观点变成对话，散步或通勤时，也能听懂作者想说什么。</p></div><div class="script-turn"><span class="speaker-label">主持人</span><p>所以，重点不是把文章念一遍，而是替听众问出那些没来得及想的问题。</p></div><div class="script-turn guest-turn"><span class="speaker-label">嘉宾</span><p>对，表达可以更轻松，但仍要忠于原文。好的改编，是把内容讲清楚，而不是补上没有依据的结论。</p></div></div>
+            <div role="tabpanel" id="panel-outline" aria-labelledby="tab-outline" hidden><ol class="outline-list"><li>零碎时间里的阅读需求</li><li>主持人提问，嘉宾解释</li><li>口语化表达与忠于原文的平衡</li></ol></div>
+            <div role="tabpanel" id="panel-review" aria-labelledby="tab-review" hidden><div class="review-copy"><h4>审校结果展示区域</h4><p>正式对接后显示实际返回的审校摘要，包括依据、重复内容和口语表达的检查结果。</p><p>设计稿不预设“全部正确”，模型审校也不能保证事实准确。</p></div></div>
+            <div class="script-footer"><span>这里展示的是设计示例，不是模型生成结果。</span><button type="button" class="link-button" id="script-download">下载脚本</button></div>
+          </div>
+          <section class="revision-section" aria-labelledby="revision-heading"><h3 id="revision-heading">继续打磨这期节目</h3><p class="revision-description">不必从头来过，告诉它你想改哪里。</p><div class="quick-actions"><button type="button" data-edit="缩短节目，保留核心观点。">缩短节目</button><button type="button" data-edit="讲得更通俗，保持原文事实。">讲得更通俗</button><button type="button" id="change-voices">调整音色</button></div><form id="revision-form"><label class="sr-only" for="revision-text">修改要求</label><div class="revision-composer"><textarea id="revision-text" rows="2" placeholder="例如：开场再短一点，嘉宾的解释更生活化。"></textarea><button type="submit" id="revision-submit" aria-label="提交修改示意" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 6-6 6 6M12 6v13"/></svg></button></div><p class="tiny-note">原材料和其他设置会保留。</p></form></section>
+        </div>
+        <details class="trace-details" id="trace-details" hidden><summary>会话与请求标识</summary><div><p><span>session_id</span><code>设计示例，未创建会话</code></p><p><span>trace_id</span><code>设计示例，未发起请求</code></p></div></details>
+      </section>
+    </div>
+    <div class="design-message" id="design-message" role="status" hidden></div>
+    <footer class="workspace-footer"><span>文字有依据，对话有温度。</span><span>文稿编辑室 · C 方案</span></footer>
+  </main>
+  <dialog id="help-dialog"><div class="dialog-top"><h2>怎样制作一期节目</h2><button type="button" id="help-close" aria-label="关闭使用说明">×</button></div><ol><li>粘贴材料，选择听众、风格和目标时长。</li><li>直接生成播客，或先预览脚本。</li><li>查看脚本、提纲和审校结果，再生成双人音频。</li><li>通过对话修改，或只调整两个角色的音色。</li></ol><p>当前为静态交互稿。顶部可以切换设计状态，所有内容仅作布局示意，未调用模型或语音服务。</p></dialog>
+</body>
+</html>

@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "project": "文本转双人播客工作台",
+  "selected_style": "C 文稿编辑室",
+  "selected_id": "editorial",
+  "selected_at": "2026-10-24",
+  "status": "style_selected_frontend_not_connected",
+  "design_system": {
+    "colors": {
+      "primary": "#7052a3",
+      "secondary": "#706780",
+      "accent": "#7052a3",
+      "background": "#f7f6fb",
+      "surface": "#ffffff",
+      "raised": "#f5f2fa",
+      "tint": "#eee8f8",
+      "border": "#e4deee",
+      "text": "#332c47"
+    },
+    "typography": {
+      "heading_font": "Noto Serif SC",
+      "body_font": "Noto Sans SC",
+      "fallback_heading": "SimSun, serif",
+      "fallback_body": "Microsoft YaHei, sans-serif",
+      "google_fonts_url": "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600&display=swap"
+    },
+    "border_radius": "8px",
+    "shadow_style": "0 8px 24px rgba(57,34,80,0.03)",
+    "layout_pattern": "居中标题 + 左侧材料与设置 + 右侧播放器、脚本与对话修改",
+    "effects": "180ms color transitions; reduced motion respected",
+    "anti_patterns": [
+      "不增加账号、历史节目库或后端未支持的功能",
+      "不使用预制音频或伪造进度冒充真实生成",
+      "不在静态设计阶段调用后端 API",
+      "不展示后端不支持的取消任务或音色试听按钮",
+      "不把角色装饰图形描述为已生成的封面"
+    ]
+  },
+  "pre_delivery_checklist": [
+    "No emojis as icons; use a consistent SVG icon set",
+    "Cursor and hover states on actionable controls",
+    "Text contrast >= 4.5:1",
+    "Visible keyboard focus and accessible form labels",
+    "Responsive at 375px, 768px, 1024px, 1440px",
+    "Respect prefers-reduced-motion",
+    "Cover empty, running, script-ready, audio-ready, stale-audio and failed states",
+    "Keep session_id and trace_id available for acceptance",
+    "No backend connection until the static frontend design stage is complete"
+  ]
+}

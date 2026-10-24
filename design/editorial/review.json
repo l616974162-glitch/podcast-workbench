@@ -1,0 +1,14 @@
+{
+  "layoutsChecked": 24,
+  "widths": [
+    375,
+    768,
+    1024,
+    1440
+  ],
+  "states": 6,
+  "keyboardAndValidation": "passed",
+  "scriptErrors": [],
+  "apiRequests": [],
+  "scope": "static-design-only"
+}
