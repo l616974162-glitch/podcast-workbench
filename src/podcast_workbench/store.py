@@ -18,6 +18,7 @@ from podcast_workbench.models import (
     Job,
     JobStatus,
     Message,
+    NodeStatus,
     ProgramSettings,
     Revision,
     Script,
@@ -236,6 +237,26 @@ class Store:
             ))
             return updated
 
+    def record_node(self, job_id: Id, node: Stage, status: NodeStatus) -> None:
+        with self._connection(write=True) as conn:
+            job = self._load(conn, "jobs", job_id, Job)
+            if job.status != "running":
+                raise StateConflictError("只能更新运行中任务的节点。")
+            updated = job.model_copy(update={
+                "node_states": {**job.node_states, node: status}, "updated_at": utc_now(),
+            })
+            conn.execute("UPDATE jobs SET payload=? WHERE id=?", (
+                updated.model_dump_json(exclude={"error_message"}), str(job_id),
+            ))
+
+    def record_partial(self, job_id: Id, warnings: list[str]) -> None:
+        with self._connection(write=True) as conn:
+            job = self._load(conn, "jobs", job_id, Job)
+            updated = job.model_copy(update={"partial": True, "warnings": warnings})
+            conn.execute("UPDATE jobs SET payload=? WHERE id=?", (
+                updated.model_dump_json(exclude={"error_message"}), str(job_id),
+            ))
+
     def recover_interrupted_jobs(self) -> int:
         """仅服务启动时调用；普通 Store 实例创建不能中断其他实例的活动任务。"""
         with self._connection(write=True) as conn:
@@ -304,7 +325,8 @@ class Store:
     def save_cover_plan(self, plan: CoverPlan) -> None:
         with self._connection(write=True) as conn:
             job = self._load(conn, "jobs", plan.job_id, Job)
-            if (job.status != "running" or job.action != "plan_cover"
+            if (job.status != "running"
+                    or job.action not in {"plan_cover", "create", "revise", "complete_program"}
                     or job.revision_id != plan.revision_id):
                 raise StateConflictError("封面策划必须对应正在运行的任务版本。")
             conn.execute("INSERT INTO cover_plans VALUES(?,?,?)", (
@@ -352,6 +374,10 @@ class Store:
                 "SELECT payload FROM jobs WHERE session_id=? AND status IN ('queued','running')",
                 (str(session_id),),
             ).fetchone()
+            last = conn.execute(
+                "SELECT payload FROM jobs WHERE session_id=? ORDER BY rowid DESC LIMIT 1",
+                (str(session_id),),
+            ).fetchone()
             messages = conn.execute(
                 "SELECT payload FROM messages WHERE session_id=? ORDER BY id", (str(session_id),),
             )
@@ -361,5 +387,6 @@ class Store:
                 current_revision=revision, published_audio=audio, published_cover=cover,
                 cover_plan=CoverPlan.model_validate_json(plan_row["payload"]) if plan_row else None,
                 active_job=Job.model_validate_json(active["payload"]) if active else None,
+                last_job=Job.model_validate_json(last["payload"]) if last else None,
                 messages=[Message.model_validate_json(message["payload"]) for message in messages],
             )

@@ -61,8 +61,28 @@
     "selected_style": "A 同屏制作",
     "selected_at": "2026-10-24",
     "source": "design/cover-redesign/a.html",
-    "status": "implemented_pending_real_agnes_verification",
+    "status": "verified_real_automatic_workflow",
     "layout": "材料优先＋节目／脚本／封面页签",
     "cover": "无文字、正方形、1K、手动提交"
+  },
+  "orchestration_design": {
+    "engine": "LangGraph",
+    "entry": "one-click",
+    "script_team": [
+      "researcher",
+      "writer",
+      "reviewer"
+    ],
+    "parallel_branches": [
+      "audio",
+      "cover_team"
+    ],
+    "cover_team": [
+      "cover_planner",
+      "image"
+    ],
+    "completion": "fan-in with partial failure isolation",
+    "recovery": "complete_program reuses successful current-version artifacts",
+    "verified_trace_id": "de713b9a-3524-4609-b1ff-6a0c421e5ab4"
   }
 }

@@ -73,7 +73,13 @@ function controls() {
   const validSource = length > 0 && length <= (health?.max_source_chars || 20000);
   $("character-count").textContent = length.toLocaleString();
   $("create-button").disabled = busy || !health?.llm_configured || !validSource;
-  $("create-label").textContent = busy ? "正在制作……" : session ? "按当前设置重新制作" : $("preview-script").checked ? "生成对话脚本" : "生成双人播客";
+  $("create-label").textContent = busy ? "Agent 正在协同制作……" : $("preview-script").checked ? "仅生成对话脚本" : session ? "一键更新完整节目" : "一键生成完整节目";
+  $("auto-cover-note").textContent = $("preview-script").checked ? "预览模式只运行脚本团队，不配音或生图。" : $("auto-cover").checked && health && !health.image_configured ? "Agnes 密钥尚未配置，封面将无法完成；脚本与音频仍会生成并保留。" : "审校后，配音与封面自动并行制作，无需逐步操作。";
+  const revisionId = session?.current_revision?.id;
+  const audioReady = session?.published_audio?.available && session.published_audio.revision_id === revisionId;
+  const coverReady = session?.published_cover?.available && session.published_cover.revision_id === revisionId;
+  $("complete-program").hidden = !revisionId || (audioReady && (!$("auto-cover").checked || coverReady));
+  $("complete-program").disabled = busy || !revisionId;
   $("revision-submit").disabled = busy || !health?.llm_configured || !$("revision-text").value.trim();
   $("new-program").disabled = busy;
   $("source-text").readOnly = busy || Boolean(session);
@@ -156,7 +162,8 @@ async function refreshSession(id, fill = false) {
       $("script-download").href = `${artifactUrl(scriptFile)}?download=true`;
       $("script-download").hidden = false;
     }
-    $("state-badge").textContent = session.audio_is_stale ? "脚本已更新" : url ? "音频就绪" : "脚本就绪";
+    const coverReady = artifactUrl(session.published_cover) && session.published_cover.revision_id === revision.id;
+    $("state-badge").textContent = session.audio_is_stale ? "脚本已更新" : url && coverReady ? "节目就绪" : url ? "音频就绪" : coverReady ? "封面就绪" : "脚本就绪";
   }
   controls();
   return session;
@@ -173,7 +180,22 @@ function progress(job) {
   }
   const index = stages.indexOf(job.stage);
   $("running-title").textContent = stageNames[index] || "任务已排队";
+  if (job.node_states) {
+    const labels = {researcher:"资料整理", writer:"播客编剧", reviewer:"内容审校", tts:"配音", merge:"音频合成", cover_planner:"封面策划", image:"生图"};
+    const active = Object.entries(job.node_states).filter(([, value]) => value === "running").map(([node]) => labels[node] || node);
+    if (active.length) $("running-title").textContent = active.join("、") + "进行中";
+  }
   document.querySelectorAll(".stage-list li").forEach((li, n) => {
+    if (job.node_states && Object.keys(job.node_states).length) {
+      const status = job.node_states[li.dataset.node];
+      li.className = {running:"current", succeeded:"complete", failed:"node-failed", skipped:"node-skipped"}[status] || "";
+      li.querySelector(".stage-word").textContent = {running:"进行中", succeeded:"已完成", failed:"未完成", skipped:"已跳过"}[status] || "等待";
+      return;
+    }
+    if (["cover_planner", "image"].includes(li.dataset.node)) {
+      li.className = ""; li.querySelector(".stage-word").textContent = "等待"; return;
+    }
+    n = stages.indexOf(li.dataset.node);
     const skipped = job.action === "render_audio" && n < 3;
     li.className = skipped || n < index ? "complete" : n === index ? "current" : "";
     li.querySelector(".stage-word").textContent = skipped ? "沿用脚本" : n < index ? "已完成" : n === index ? "进行中" : "等待";
@@ -193,11 +215,13 @@ async function poll() {
       $("empty-output").hidden = Boolean(session.current_revision);
       $("failure-banner").hidden = job.status !== "failed" || !session.current_revision;
       if (job.status === "failed") {
-        $("state-badge").textContent = ["plan_cover", "generate_cover"].includes(job.action) ? "封面操作未完成" : "制作未完成";
-        $("retry-audio").hidden = ["plan_cover", "generate_cover"].includes(job.action);
+        $("state-badge").textContent = job.partial ? "节目部分完成" : ["plan_cover", "generate_cover"].includes(job.action) ? "封面操作未完成" : "制作未完成";
+        $("retry-audio").hidden = job.partial || ["plan_cover", "generate_cover"].includes(job.action);
         document.querySelector("#failure-banner b").textContent = "本次制作未完成，已有内容已保留";
-        message(job.error_message || "制作失败，请重试。");
-      } else { message(job.action === "plan_cover" ? "画面描述已整理，可以编辑后生成封面。" : job.action === "generate_cover" ? "封面生成完成，可以预览和下载。" : "制作完成，可查看脚本或试听音频。"); }
+        message(job.warnings?.length ? job.warnings.join("\n") : job.error_message || "制作失败，请重试。");
+      } else { message(job.action === "plan_cover" ? "画面描述已整理，可以编辑后生成封面。" : job.action === "generate_cover" ? "封面生成完成，可以预览和下载。" : "协同制作完成，可在节目、脚本和封面中查看结果。"); }
+      $("collaboration-summary").hidden = !job.node_states || !Object.keys(job.node_states).length;
+      $("collaboration-summary").textContent = job.partial ? "协作已结束，部分产物未完成，已成功的结果可继续使用。" : ["create", "revise", "complete_program"].includes(job.action) ? "LangGraph 已自动完成本次任务的节点协作。" : "本次单项调整已完成。";
     } else {
       progress(job);
       timer = setTimeout(poll, 1000);
@@ -214,6 +238,7 @@ async function poll() {
 async function submit(body) {
   if (pending || jobId || (!["plan_cover", "generate_cover"].includes(body.action) && !voiceValid())) return;
   pending = true; message(""); $("failure-banner").hidden = true; controls();
+  $("collaboration-summary").hidden = true;
   try {
     const accepted = await api("/chat", body);
     traceId = accepted.trace_id;
@@ -239,16 +264,21 @@ $("material-form").addEventListener("submit", event => {
   $("source-error").textContent = `请输入 1 至 ${health?.max_source_chars || 20000} 字材料。`;
   $("source-text").setAttribute("aria-invalid", String(!valid));
   if (!valid) return;
-  const body = {settings:settings(), preview_only:$("preview-script").checked};
+  const body = {settings:settings(), preview_only:$("preview-script").checked, auto_cover:$("auto-cover").checked};
   void submit(session ? {...body, action:"revise", session_id:session.id, message:"按照当前节目设置重新制作，保持原文事实。"} : {...body, action:"create", source_text:source});
 });
 $("revision-form").addEventListener("submit", event => {
   event.preventDefault();
   if (!session || !$("revision-text").value.trim()) return;
   void submit({action:"revise", session_id:session.id, message:$("revision-text").value.trim(),
-    settings:settings(), preview_only:$("preview-script").checked});
+    settings:settings(), preview_only:$("preview-script").checked, auto_cover:$("auto-cover").checked});
 });
 for (const id of ["render-audio", "render-new-audio", "retry-audio", "change-voices"]) $(id).addEventListener("click", renderAudio);
+$("complete-program").addEventListener("click", () => {
+  if (!session?.current_revision) return;
+  void submit({action:"complete_program", session_id:session.id,
+    revision_id:session.current_revision.id, auto_cover:$("auto-cover").checked});
+});
 $("resume-job").addEventListener("click", () => { message(""); void poll(); });
 for (const id of ["use-example", "empty-example"]) $(id).addEventListener("click", () => { if (!session && !jobId) { $("source-text").value = example; controls(); $("source-text").focus(); } });
 $("new-program").addEventListener("click", () => {
@@ -263,6 +293,7 @@ $("new-program").addEventListener("click", () => {
   $("source-text").removeAttribute("aria-invalid");
   $("program-audio").pause(); $("program-audio").removeAttribute("src");
   $("state-badge").textContent = "等待创作"; message(""); controls();
+  $("collaboration-summary").hidden = true;
   displayedRevision = null; scriptExpanded = false;
   $("voice-error").hidden = true;
 });
@@ -294,6 +325,8 @@ window.addEventListener("resize", () => { if (session?.current_revision) scriptD
 async function init() {
   try {
     health = await api("/health");
+    $("auto-cover").defaultChecked = health.auto_cover_default !== false;
+    $("auto-cover").checked = $("auto-cover").defaultChecked;
     workbenchUI.configure(health);
     const issues = [];
     if (!health.llm_configured) issues.push("请在本地 .env 填写 DEEPSEEK_API_KEY 并重启后台，再生成脚本");
@@ -305,6 +338,16 @@ async function init() {
       try {
         await refreshSession(id, true);
         if (session.active_job) { jobId = session.active_job.id; void poll(); }
+        else if (session.last_job?.status === "failed") {
+          $("state-badge").textContent = session.last_job.partial ? "节目部分完成" : "上次任务未完成";
+          message(session.last_job.warnings.length ? session.last_job.warnings.join("\n") : session.last_job.error_message);
+          $("collaboration-summary").hidden = false;
+          $("collaboration-summary").textContent = "上次协作部分完成，可自动补齐缺失产物，已成功的结果会复用。";
+        }
+        else if (session.last_job?.status === "succeeded" && ["create", "revise", "complete_program"].includes(session.last_job.action)) {
+          $("collaboration-summary").hidden = false;
+          $("collaboration-summary").textContent = "LangGraph 已完成上次协作，已恢复当前版本的产物。";
+        }
       } catch (error) { if (error.status === 404) remember(null); showError(error); }
     }
   } catch (error) { $("connection-status").textContent = error.message; }

@@ -63,3 +63,9 @@ settings 新增 host_name／guest_name，默认主持人／嘉宾，长度 1–2
 ## 封面扩展
 
 POST /chat 支持 plan_cover 与 generate_cover，需指定 session_id、revision_id 以及可选 cover（style、prompt）；generate_cover 必须提供 prompt，均不接受原文或节目设置。任务查询新增 cover_plan；会话新增 cover_plan、published_cover、cover_is_stale，图片通过原产物接口读取。健康检查增加 image_configured、image_model。完整契约及安全边界见 covers.md。
+
+## 自动协同
+
+create／revise 的完整制作默认自动运行音频与封面分支；auto_cover 布尔值可覆盖 config.yaml 的默认开关。preview_only=true 仍只生成脚本。complete_program 接收 session_id、当前 revision_id 和可选 auto_cover，一次补齐当前版本缺失产物，复用已成功内容，不接受原文、节目设置或封面手动描述。
+
+Job 新增 node_states、partial、warnings。部分完成时 status=failed 且 partial=true，成功产物仍可下载；界面不得当成完整成功。会话新增 last_job，刷新可恢复最后一次部分完成提示；健康检查新增 auto_cover_default 与 orchestration=langgraph。

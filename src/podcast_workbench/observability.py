@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from podcast_workbench.models import ErrorCode, Stage, utc_now
+from podcast_workbench.models import ErrorCode, NodeStatus, Stage, utc_now
 
 
 class _Record(BaseModel):
@@ -21,18 +21,20 @@ class _Record(BaseModel):
         "run.start", "run.end", "run.error", "node.start", "node.end", "node.error",
         "llm.start", "llm.end", "llm.error", "tool.start", "tool.end", "tool.error",
         "audio_merge.start", "audio_merge.end", "audio_merge.error",
-        "cache.hit",
+        "cache.hit", "node.skip",
     ]
     trace_id: UUID
     session_id: UUID
     job_id: UUID | None = None
     revision_id: UUID | None = None
     node: Literal[
-        "researcher", "writer", "reviewer", "tts", "audio_merge", "cover_planner", "image",
+        "researcher", "writer", "reviewer", "tts", "merge", "audio_merge",
+        "cover_planner", "image",
     ] | None = None
     provider: Literal["deepseek", "qwen", "edge", "agnes"] | None = None
-    status: Literal["queued", "running", "succeeded", "failed"] = "running"
+    status: Literal["queued", "running", "succeeded", "failed", "skipped"] = "running"
     duration_ms: float | None = Field(default=None, ge=0)
+    http_status: int | None = Field(default=None, ge=100, le=599)
     error_code: ErrorCode | None = None
 
 
@@ -61,6 +63,7 @@ class RunContext:
     logger: EventLogger
     revision_id: UUID | None = None
     on_stage: Callable[[Stage], None] | None = None
+    on_node: Callable[[Stage, NodeStatus], None] | None = None
 
     def emit(self, event: str, **fields: object) -> None:
         self.logger.emit({
@@ -68,6 +71,19 @@ class RunContext:
             "session_id": self.session_id, "job_id": self.job_id,
             "revision_id": self.revision_id,
         })
+        states: dict[str, NodeStatus] = {
+            "node.start": "running", "node.end": "succeeded",
+            "node.error": "failed", "node.skip": "skipped",
+        }
+        if self.on_node is not None and event in states:
+            from typing import cast
+            self.on_node(cast(Stage, fields["node"]), states[event])
+        if self.on_node is not None and event.startswith("audio_merge."):
+            merge_states: dict[str, NodeStatus] = {
+                "audio_merge.start": "running", "audio_merge.end": "succeeded",
+                "audio_merge.error": "failed",
+            }
+            self.on_node("merge", merge_states[event])
 
     def stage(self, stage: Stage) -> None:
         if self.on_stage is not None:

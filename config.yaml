@@ -32,6 +32,7 @@ image:
   download_hosts: [storage.googleapis.com, apihub.agnes-ai.com]
 
 pipeline:
+  auto_cover: true
   nodes: [researcher, writer, reviewer]
   recursion_limit: 12
 

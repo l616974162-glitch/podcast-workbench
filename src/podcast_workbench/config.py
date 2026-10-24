@@ -60,6 +60,7 @@ class TTSConfig(ConfigSection):
 class PipelineConfig(ConfigSection):
     nodes: tuple[Literal["researcher"], Literal["writer"], Literal["reviewer"]]
     recursion_limit: int = Field(ge=5, le=50)
+    auto_cover: bool = True
 
 
 class AgentConfig(ConfigSection):

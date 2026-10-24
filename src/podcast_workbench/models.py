@@ -7,8 +7,11 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
-Action = Literal["create", "revise", "render_audio", "plan_cover", "generate_cover"]
+Action = Literal[
+    "create", "revise", "render_audio", "plan_cover", "generate_cover", "complete_program",
+]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
+NodeStatus = Literal["running", "succeeded", "failed", "skipped"]
 Stage = Literal[
     "queued", "researcher", "writer", "reviewer", "tts", "merge", "cover_planner", "image",
     "done", "failed",
@@ -74,17 +77,26 @@ class ChatRequest(Model):
     preview_only: bool = False
     revision_id: UUID | None = None
     cover: CoverOptions | None = None
+    auto_cover: bool | None = None
 
     @model_validator(mode="after")
     def check_action(self) -> Self:
+        if self.action == "complete_program":
+            if (self.session_id is None or self.revision_id is None or self.source_text is not None
+                    or self.settings is not None or self.message or self.preview_only
+                    or self.cover is not None):
+                raise ValueError("补齐节目只接受会话、当前版本和自动封面选项。")
+            return self
         if self.action in {"plan_cover", "generate_cover"}:
             if (self.session_id is None or self.revision_id is None or self.source_text is not None
-                    or self.settings is not None or self.message or self.preview_only):
+                    or self.settings is not None or self.message or self.preview_only
+                    or self.auto_cover is not None):
                 raise ValueError("封面操作需指定会话和脚本版本，不接受脚本或音色设置。")
             if self.action == "generate_cover" and (self.cover is None or not self.cover.prompt):
                 raise ValueError("请先填写或整理封面画面描述。")
             return self
-        if self.cover is not None or self.revision_id is not None:
+        if (self.cover is not None or self.revision_id is not None
+                or self.auto_cover is not None and self.action == "render_audio"):
             raise ValueError("封面参数只能用于封面操作。")
         if self.action == "create":
             if self.source_text is None:
@@ -186,6 +198,9 @@ class Job(Model):
     status: JobStatus = "queued"
     stage: Stage = "queued"
     error_code: ErrorCode | None = None
+    node_states: dict[Stage, NodeStatus] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    partial: bool = False
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
@@ -204,6 +219,7 @@ class Session(Model):
     published_cover: Artifact | None = None
     cover_plan: CoverPlan | None = None
     active_job: Job | None = None
+    last_job: Job | None = None
     messages: list[Message] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]

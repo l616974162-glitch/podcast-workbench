@@ -4,12 +4,12 @@
 
 当前已连接 C 版网页与后台，默认 **Edge 在线配音**，保留千问兼容路径。支持制作进度、脚本预览、多轮修改、换音色、播放下载与最近会话恢复。原 v0.1.0-backend-preview 标签仍对应先前的千问后端版本。
 
-DeepSeek 三 Agent＋Edge 已完成真实完整音频生成，时长 152.904 秒。新增 Agnes 封面功能已完成代码与隔离测试，用户选择稍后填写密钥，尚未真实生图；千问主链路仍待真实验收。切换方式见 [Edge 配音说明](docs/edge-tts.md)，封面操作见[封面扩展说明](docs/covers.md)。
+当前默认“一键生成完整节目”：LangGraph 自动协调四个 DeepSeek Agent、配音与 Agnes 生图。一次请求的真实联调已生成 145.848 秒音频和 1024×1024 封面，两项下载均为 HTTP 200；千问主链路仍待真实验收。操作见[自动协同说明](docs/automatic-collaboration.md)与[封面说明](docs/covers.md)。
 
 ## 已确定的技术方向
 
 - LangGraph 编排资料整理、播客编剧、内容审校三个 Agent。
-- 独立的第四个封面策划 Agent 使用 DeepSeek，只在用户点击整理封面描述时运行；Agnes Image 2.5 Flash 负责生图，不混入原三节点 pipeline。
+- LangGraph 制作总图在审校后自动并行调用配音分支和第四个封面策划 Agent，后者接 Agnes 生图，汇合后交付整期节目。
 - DeepSeek 承担文字模型调用；日常默认 Edge 配音，课程验收可切回千问 Qwen-TTS。
 - 默认一次生成完整节目，可选择先预览脚本。
 - FastAPI、SQLite、原生网页；完整成品成功后发布，保留旧版本。
@@ -21,6 +21,7 @@ DeepSeek 三 Agent＋Edge 已完成真实完整音频生成，时长 152.904 秒
 - [需求与设计](docs/superpowers/specs/2026-10-24-podcast-workbench-design.md)
 - [实施计划](docs/superpowers/plans/2026-10-24-podcast-workbench.md)
 - [封面设计与边界](docs/cover-feature-design.md)
+- [LangGraph 自动协同与一键补齐](docs/automatic-collaboration.md)
 
 ## 本地安装与配置
 
@@ -67,7 +68,7 @@ doctor 和 check-config 均不发起网络请求、不计费。离线检查允�
 # 仅生成脚本：请求真实 DeepSeek，不请求千问 TTS。
 & .\.venv\Scripts\python.exe -m podcast_workbench run --request-file examples/create-preview.json
 
-# 生成完整节目：请求真实 DeepSeek 和当前 TTS 引擎（默认 Edge）。
+# 生成完整节目：自动请求 DeepSeek、当前 TTS 引擎（默认 Edge）和 Agnes。
 & .\.venv\Scripts\python.exe -m podcast_workbench run --request-file examples/create-podcast.json
 ```
 
@@ -111,7 +112,7 @@ run 支持与 POST /chat 相同的 JSON 请求；连续修改、单独制作音�
 
 ```powershell
 & .\.venv\Scripts\python.exe -m pytest
-& .\.venv\Scripts\python.exe -m ruff check .
+& .\.venv\Scripts\python.exe -m ruff check src tests
 & .\.venv\Scripts\python.exe -m mypy
 ```
 
@@ -127,15 +128,19 @@ flowchart LR
     C --> S[保存脚本快照]
     S --> P{仅预览?}
     P -->|是| R[等待后续操作]
-    P -->|否| T[Qwen-TTS 分角色合成]
+    P -->|否| T[Edge 或 Qwen 分角色合成]
+    P -->|否，自动封面开启| D[封面策划 Agent]
+    D --> G[Agnes 生图]
     R -->|render_audio| T
     T --> F[FFmpeg 统一格式]
     F --> M[按脚本顺序拼接并发布]
+    M --> J[总图汇合并交付]
+    G --> J
 ```
 
-pipeline 适合这条固定依赖链。三个 Agent 各有独立提示词和 JSON 输出校验，审校稿才成为最终脚本。纯音色调整跳过 LLM。角色不是三个聊天标签，而是三个实际模型调用节点。
+pipeline 适合脚本的固定依赖链。三 Agent 子图完成后，制作总图并行执行音频节点与封面子图；封面子图内策划完成即调用生图，不等待整段配音。四个 Agent 具有独立提示词和 JSON 校验，审校稿作为两分支的共同依据。纯音色调整跳过 LLM。
 
-- 图 recursion_limit=12，固定三节点，无无限审校回路。
+- 总图与子图 recursion_limit=12，无无限审校回路；分支错误隔离，部分完成不冒充全部成功。
 - 每次 LLM/TTS 请求超时 90 秒；LLM 输出最多 6000 tokens，结构不合法最多额外请求一次，HTTP 失败不自动重试。
 - 单次制作最多 48 个语音片段，单片不超过 600 字符；下载和完整音频均限制为 20 MiB。Edge 模式沿用这些项目护栏，不表示服务商官方配额。
 - 单会话一个活动任务，进程同时最多四个任务；退出等待制作完成，强制中断在下次启动标记失败。

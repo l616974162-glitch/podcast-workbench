@@ -97,9 +97,12 @@ class AgnesImageClient:
             temporary.replace(path)
             ctx.emit("tool.end", node="image", provider="agnes", status="succeeded",
                      duration_ms=(perf_counter() - started) * 1000)
-        except Exception:
+        except Exception as error:
             ctx.emit("tool.error", node="image", provider="agnes", status="failed",
-                     error_code="image_error")
+                     error_code="image_error", http_status=(
+                         error.response.status_code if isinstance(error, httpx.HTTPStatusError)
+                         else None
+                     ))
             raise ServiceError("image_error") from None
         finally:
             temporary.unlink(missing_ok=True)

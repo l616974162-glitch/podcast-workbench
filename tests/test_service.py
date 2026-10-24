@@ -44,6 +44,8 @@ class RecordingAudio:
 
 def make_service(tmp_path: Path):
     config = load_config(ROOT / "config.yaml")
+    # 此工厂用于既有“脚本＋配音”契约；完整自动协同由 test_production_graph 显式开启。
+    config.pipeline.auto_cover = False
     config.llm.api_key = SecretStr("test-only-llm")
     config.tts.api_key = SecretStr("test-only-tts")
     config.app.output_dir = tmp_path / "output"

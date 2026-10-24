@@ -217,6 +217,8 @@ def create_app(
             "frontend_connected": True,
             "image_configured": bool(config.image.api_key.get_secret_value().strip()),
             "image_model": config.image.model,
+            "auto_cover_default": config.pipeline.auto_cover,
+            "orchestration": "langgraph",
             "max_source_chars": min(config.app.max_source_chars, 20000),
         }
 

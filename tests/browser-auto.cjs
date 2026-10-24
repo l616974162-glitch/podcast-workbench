@@ -1,0 +1,48 @@
+// 独立浏览器响应隔离测试；不向真实生成接口提交请求。
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}});
+ const id='11111111-1111-4111-8111-111111111111',rev='22222222-2222-4222-8222-222222222222';
+ const audioId='33333333-3333-4333-8333-333333333333',imageId='44444444-4444-4444-8444-444444444444';
+ let phase='running',hasCover=false,partial=false,posts=[];
+ const settings={host_name:'主持人',guest_name:'嘉宾',audience:'general',style:'casual',target_minutes:3,host_voice:'zh-CN-XiaoxiaoNeural',guest_voice:'zh-CN-YunxiNeural'};
+ const nodes=()=>({researcher:'succeeded',writer:'succeeded',reviewer:'succeeded',tts:phase==='running'?'running':'succeeded',merge:phase==='running'?'running':'succeeded',cover_planner:'succeeded',image:phase==='running'?'running':partial?'failed':'succeeded'});
+ const job=()=>({id,session_id:id,revision_id:rev,trace_id:id,action:posts.at(-1)?.action||'create',status:phase,stage:phase==='running'?'image':'done',node_states:nodes(),partial,warnings:partial?['封面未制作：请配置 AGNES_API_KEY，已有音频已保留。']:[],error_message:partial?'封面生成失败':null});
+ const session=()=>({id,source_text:'自动协同的原文材料',settings,current_revision:{id:rev,number:1,settings,script:{title:'自动协同节目',turns:[{role:'host',text:'问题？'},{role:'guest',text:'回答。'}],outline:['主题'],review_summary:'核对通过'}},published_audio:phase==='running'?null:{id:audioId,revision_id:rev,url:`/artifacts/${audioId}`,available:true,duration_seconds:10,tts_protocol:'edge_tts'},published_cover:hasCover?{id:imageId,revision_id:rev,url:`/artifacts/${imageId}`,available:true,image_width:1024,image_height:1024,image_model:'agnes-image-2.5-flash',cover_options:{style:'illustration',prompt:'No text cover'}}:null,cover_plan:null,audio_is_stale:false,cover_is_stale:false,active_job:phase==='running'?job():null,last_job:job()});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/health',r=>r.fulfill({json:{llm_configured:true,tts_configured:true,ffmpeg_available:true,tts_protocol:'edge_tts',default_voices:[settings.host_voice,settings.guest_voice],image_configured:true,auto_cover_default:true,max_source_chars:20000}}));
+ await page.route('**/chat',r=>{posts.push(r.request().postDataJSON());return r.fulfill({status:202,json:{session_id:id,job_id:id,trace_id:id,status:'queued'}})});
+ await page.route('**/sessions/*',r=>r.fulfill({json:session()}));
+ await page.route('**/sessions/*/artifacts',r=>r.fulfill({json:{artifacts:[]}}));
+ await page.route('**/jobs/*',r=>r.fulfill({json:job()}));
+ await page.route('**/artifacts/*',r=>r.fulfill({status:404,body:''}));
+ await page.goto('http://127.0.0.1:8000/');
+ await page.locator('#use-example').click();
+ assert.equal(await page.locator('#preview-script').isChecked(),false);
+ assert.equal(await page.locator('#auto-cover').isChecked(),true);
+ await page.locator('#create-button').click();
+ await page.locator('[data-node="tts"].current').waitFor();
+ assert.equal(await page.locator('[data-node="image"].current').isVisible(),true);
+ assert.equal(posts.length,1);assert.equal(posts[0].auto_cover,true);assert.equal(posts[0].preview_only,false);
+ assert.equal(await page.locator('#create-button').isDisabled(),true);
+ await page.screenshot({path:'data/auto-collaboration-running.png',fullPage:true});
+ phase='failed';partial=true;
+ await page.locator('#state-badge').filter({hasText:'节目部分完成'}).waitFor();
+ assert.equal(await page.locator('#audio-panel').isVisible(),true);
+ await page.reload();
+ await page.locator('#state-badge').filter({hasText:'节目部分完成'}).waitFor();
+ assert.match(await page.locator('#design-message').innerText(),/AGNES_API_KEY/);
+ phase='running';partial=false;
+ await page.locator('#complete-program').click();
+ assert.equal(posts.at(-1).action,'complete_program');
+ assert.equal(posts.at(-1).revision_id,rev);
+ phase='succeeded';hasCover=true;
+ await page.waitForFunction(()=>!document.getElementById('new-program').disabled);
+ assert.equal(await page.locator('#complete-program').isVisible(),false);
+ assert.equal(posts.length,2);
+ for(const width of [375,768,1024,1440]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)}
+ assert.deepEqual(errors,[]);
+ await browser.close();console.log('PASS automatic single submit, parallel progress, partial restore, one-click completion and responsive layout');
+})().catch(e=>{console.error(e);process.exit(1)});

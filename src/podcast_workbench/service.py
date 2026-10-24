@@ -24,6 +24,7 @@ from podcast_workbench.models import (
     Stage,
 )
 from podcast_workbench.observability import EventLogger, RunContext
+from podcast_workbench.production import ProductionGraph
 from podcast_workbench.scripts import ScriptWorkflow, merge_settings
 from podcast_workbench.store import BusySessionError, StateConflictError, Store
 from podcast_workbench.tools.registry import create_image_client, create_tts_client
@@ -62,8 +63,9 @@ class WorkbenchService:
 
     def submit(self, request: ChatRequest, trace_id: UUID | None = None) -> Job:
         cover_action = request.action in {"plan_cover", "generate_cover"}
+        version_action = cover_action or request.action == "complete_program"
         needs_text = request.action in {"create", "revise", "plan_cover"}
-        needs_audio = (request.action == "render_audio"
+        needs_audio = (request.action in {"render_audio", "complete_program"}
                        or request.action in {"create", "revise"} and not request.preview_only)
         if needs_text and not self.config.llm.api_key.get_secret_value().strip():
             raise ConfigError("请在本地 .env 填写 DEEPSEEK_API_KEY。")
@@ -87,7 +89,7 @@ class WorkbenchService:
             raise RequestError("生成音频只接受音色设置；修改内容请使用 revise。")
         if request.session_id is not None:
             session = self.store.get_session(request.session_id)
-            if cover_action and (session.current_revision is None
+            if version_action and (session.current_revision is None
                                  or request.revision_id != session.current_revision.id):
                 raise StateConflictError("封面需要对应当前脚本，请刷新后重试。")
             if request.action == "render_audio" and session.current_revision is None:
@@ -128,7 +130,7 @@ class WorkbenchService:
             session_id = self.store.create_session(request.source_text, selected)
         job = self.store.create_job(
             session_id, request.action, trace_id or uuid4(),
-            expected_revision_id=request.revision_id if cover_action else None,
+            expected_revision_id=request.revision_id if version_action else None,
         )
         task = asyncio.create_task(self._run(job, request, selected))
         self._tasks[job.id] = task
@@ -146,6 +148,7 @@ class WorkbenchService:
             self.logger,
             revision_id=job.revision_id,
             on_stage=stage,
+            on_node=lambda node, status: self.store.record_node(job.id, node, status),
         )
         try:
             self.store.transition_job(job.id, "running")
@@ -167,10 +170,20 @@ class WorkbenchService:
                 assert job.revision_id is not None
                 revision = self.store.get_revision(job.revision_id)
             else:
-                revision = await self.scripts.run(job, request, ctx)
+                result = await ProductionGraph(
+                    self.config, self.store, self.scripts, self.audio, self.covers,
+                ).run(job, request, selected, ctx)
+                revision = result["revision"]
+                warnings = [value for value in (
+                    result.get("audio_warning"), result.get("cover_warning"),
+                ) if value]
+                if warnings:
+                    self.store.record_partial(job.id, warnings)
+                    code = (result.get("audio_error") or result.get("cover_error")
+                            or "internal_error")
+                    raise ServiceError(code)
             ctx.revision_id = revision.id
-            if (request.action == "render_audio"
-                    or request.action in {"create", "revise"} and not request.preview_only):
+            if request.action == "render_audio":
                 artifact = await self.audio.render(revision, selected, ctx)
                 artifact = artifact.model_copy(update={"job_id": job.id})
                 self.store.save_artifact(artifact)
