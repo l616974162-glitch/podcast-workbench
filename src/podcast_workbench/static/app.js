@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 const storageKey = "podcast-workbench-session";
 let health = null, session = null, pending = false, jobId = null, timer = null, traceId = "";
 let polling = false;
+let displayedRevision = null, scriptExpanded = false;
 const stages = ["researcher", "writer", "reviewer", "tts", "merge"];
 const stageNames = ["正在整理材料", "正在编写对话", "正在审校内容", "正在分角色配音", "正在合成音频"];
 const example = "阅读可以发生在通勤、散步等零碎时间。将文章改编为主持人与嘉宾的对话，可以用提问和解释帮助理解。改编时应保留原文事实，区分观点与结论，不补充没有依据的信息。";
@@ -47,16 +48,31 @@ function identifiers() {
 }
 function settings() {
   return {audience: $("audience").value, style: $("style").value,
+    host_name: $("host-name").value.trim() || "主持人", guest_name: $("guest-name").value.trim() || "嘉宾",
     target_minutes: Number(document.querySelector('input[name="minutes"]:checked').value),
-    host_voice: $("host-voice").value, guest_voice: $("guest-voice").value};
+    host_voice: selectedVoice("host"), guest_voice: selectedVoice("guest")};
+}
+function selectedVoice(role) {
+  return $(role + "-voice").value === "custom" ? $(role + "-custom-voice").value.trim() : $(role + "-voice").value;
+}
+function customVoiceFields() {
+  for (const role of ["host", "guest"]) {
+    $(role + "-custom-voice").closest("label").hidden = $(role + "-voice").value !== "custom";
+  }
 }
 function voiceValid() {
-  const valid = Boolean($("host-voice").value && $("guest-voice").value && $("host-voice").value !== $("guest-voice").value);
-  $("voice-error").hidden = valid;
-  return valid;
+  const voices = [selectedVoice("host"), selectedVoice("guest")];
+  const invalidId = health?.tts_protocol === "edge_tts" && voices.some(v => !/^[a-z]{2,3}-[A-Z]{2}-.+Neural$/.test(v));
+  const error = voices.some(v => !v) ? "请为两位说话人填写或选择音色。" : invalidId ? "请输入完整 Edge 音色 ID，例如 zh-CN-XiaoxiaoNeural。" : voices[0] === voices[1] ? "请为主持人和嘉宾选择不同音色。" : "";
+  $("voice-error").textContent = error;
+  $("voice-error").hidden = !error;
+  return !error;
 }
 function controls() {
   const busy = pending || Boolean(jobId);
+  document.querySelector(".output-column").setAttribute("aria-busy", String(busy));
+  document.body.classList.toggle("is-making", busy);
+  customVoiceFields();
   const length = [...$("source-text").value.trim()].length;
   const validSource = length > 0 && length <= (health?.max_source_chars || 20000);
   $("character-count").textContent = length.toLocaleString();
@@ -75,6 +91,8 @@ function controls() {
   identifiers();
 }
 function fillSettings(value) {
+  $("host-name").value = value.host_name || "主持人";
+  $("guest-name").value = value.guest_name || "嘉宾";
   $("audience").value = value.audience;
   $("style").value = value.style;
   document.querySelector(`input[name="minutes"][value="${value.target_minutes}"]`).checked = true;
@@ -85,6 +103,14 @@ function fillSettings(value) {
     }
     select.value = value[field];
   }
+}
+function scriptDisclosure() {
+  const panel = $("panel-script"), button = $("script-expand");
+  panel.classList.toggle("is-collapsed", !scriptExpanded);
+  const active = $("tab-script").getAttribute("aria-selected") === "true";
+  button.hidden = !active || (!scriptExpanded && panel.scrollHeight <= 360);
+  button.setAttribute("aria-expanded", String(scriptExpanded));
+  button.textContent = scriptExpanded ? "收起脚本" : "展开完整脚本";
 }
 function artifactUrl(item) {
   return item?.available && /^\/artifacts\/[0-9a-f-]{36}$/.test(item.url || "") ? item.url : null;
@@ -103,6 +129,7 @@ async function refreshSession(id, fill = false) {
   $("result-output").hidden = !revision;
   $("empty-output").hidden = Boolean(revision) || Boolean(jobId);
   if (revision) {
+    if (displayedRevision !== revision.id) { displayedRevision = revision.id; scriptExpanded = false; }
     const script = revision.script;
     document.querySelector(".episode-heading h3").textContent = script.title;
     $("episode-style").textContent = revision.settings.style === "casual" ? "轻松访谈" : "知识讲解";
@@ -110,13 +137,16 @@ async function refreshSession(id, fill = false) {
     $("revision-label").textContent = `第 ${revision.number} 版`;
     $("panel-script").replaceChildren(...script.turns.map(turn => {
       const row = node("div", "", `script-turn${turn.role === "guest" ? " guest-turn" : ""}`);
-      row.append(node("span", turn.role === "host" ? "主持人" : "嘉宾", "speaker-label"), node("p", turn.text));
+      row.append(node("span", turn.role === "host" ? (revision.settings.host_name || "主持人") : (revision.settings.guest_name || "嘉宾"), "speaker-label"), node("p", turn.text));
       return row;
     }));
     const list = node("ol", "", "outline-list");
     list.append(...script.outline.map(text => node("li", text)));
     $("panel-outline").replaceChildren(list);
     $("panel-review").replaceChildren(node("p", script.review_summary || "本次未返回审校摘要。", "review-copy"));
+    $("document-download").href = `/revisions/${revision.id}/document`;
+    $("document-download").hidden = false;
+    requestAnimationFrame(scriptDisclosure);
     const audio = session.published_audio, url = artifactUrl(audio);
     $("audio-panel").hidden = !url;
     $("script-ready-callout").hidden = Boolean(url);
@@ -189,6 +219,7 @@ async function submit(body) {
     const accepted = await api("/chat", body);
     traceId = accepted.trace_id;
     jobId = accepted.job_id;
+    progress({stage:"queued", action:body.action});
     remember(accepted.session_id);
     await refreshSession(accepted.session_id);
     $("revision-text").value = "";
@@ -199,7 +230,7 @@ async function submit(body) {
 function renderAudio() {
   if (!session?.current_revision) return;
   void submit({action:"render_audio", session_id:session.id,
-    settings:{host_voice:$("host-voice").value, guest_voice:$("guest-voice").value}});
+    settings:{host_voice:selectedVoice("host"), guest_voice:selectedVoice("guest")}});
 }
 $("material-form").addEventListener("submit", event => {
   event.preventDefault();
@@ -231,6 +262,8 @@ $("new-program").addEventListener("click", () => {
   $("source-text").removeAttribute("aria-invalid");
   $("program-audio").pause(); $("program-audio").removeAttribute("src");
   $("state-badge").textContent = "等待创作"; message(""); controls();
+  displayedRevision = null; scriptExpanded = false;
+  $("voice-error").hidden = true;
 });
 document.querySelectorAll("[data-edit]").forEach(button => button.addEventListener("click", () => {
   $("revision-text").value = button.dataset.edit; controls(); $("revision-text").focus();
@@ -240,6 +273,7 @@ document.querySelectorAll("[data-tab]").forEach((button, index, tabs) => {
     const active = tab === button; tab.setAttribute("aria-selected", String(active)); tab.tabIndex = active ? 0 : -1;
     $(tab.getAttribute("aria-controls")).hidden = !active;
   }));
+  button.addEventListener("click", scriptDisclosure);
   button.addEventListener("keydown", event => {
     const next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : null;
     if (next !== null) { event.preventDefault(); tabs[next].click(); tabs[next].focus(); }
@@ -249,12 +283,19 @@ $("help-open").addEventListener("click", () => $("help-dialog").showModal());
 $("help-close").addEventListener("click", () => $("help-dialog").close());
 $("material-form").addEventListener("input", controls);
 $("revision-text").addEventListener("input", controls);
+$("script-expand").addEventListener("click", () => {
+  scriptExpanded = !scriptExpanded;
+  scriptDisclosure();
+  if (!scriptExpanded) $("tab-script").scrollIntoView({block:"nearest"});
+});
+window.addEventListener("resize", () => { if (session?.current_revision) scriptDisclosure(); });
 async function init() {
   try {
     health = await api("/health");
     const voices = health.tts_protocol === "edge_tts" ? [["zh-CN-XiaoxiaoNeural", "晓晓 · 女声"], ["zh-CN-YunxiNeural", "云希 · 男声"]] : [["Cherry", "芊悦 Cherry"], ["Ethan", "晨煦 Ethan"], ["Serena", "苏瑶 Serena"]];
     ["host-voice", "guest-voice"].forEach((id, index) => {
       $(id).replaceChildren(...voices.map(([value, label]) => new Option(label, value)));
+      if (health.tts_protocol === "edge_tts") $(id).add(new Option("自定义 Edge 音色…", "custom"));
       $(id).value = health.default_voices[index];
       for (const option of $(id).options) option.defaultSelected = option.selected;
     });

@@ -46,7 +46,7 @@ class ScriptWorkflow:
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / "script.txt"
         text = script.title + "\n\n" + script.summary + "\n\n" + "\n\n".join(
-            ("主持人" if turn.role == "host" else "嘉宾") + "：" + turn.text
+            (selected.host_name if turn.role == "host" else selected.guest_name) + "：" + turn.text
             for turn in script.turns
         )
         temporary = path.with_suffix(".tmp")

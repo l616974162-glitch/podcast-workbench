@@ -33,6 +33,8 @@ class Model(BaseModel):
 
 
 class ProgramSettings(Model):
+    host_name: str = Field(default="主持人", min_length=1, max_length=20)
+    guest_name: str = Field(default="嘉宾", min_length=1, max_length=20)
     topic: str = Field(default="", max_length=120)
     audience: Literal["general", "beginner", "professional"] = "general"
     style: Literal["casual", "educational"] = "casual"

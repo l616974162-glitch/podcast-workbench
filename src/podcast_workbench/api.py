@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from podcast_workbench.config import ConfigError, Settings, load_config
+from podcast_workbench.documents import export_script
 from podcast_workbench.errors import ServiceError
 from podcast_workbench.media import resolve_ffmpeg
 from podcast_workbench.models import Artifact, ChatRequest
@@ -175,6 +176,18 @@ def create_app(
             media_type=artifact.mime_type,
             filename=str(artifact.id) + extension,
             content_disposition_type="attachment" if download else "inline",
+        )
+
+    @app.get("/revisions/{revision_id}/document")
+    def get_document(revision_id: UUID, request: Request) -> Response:
+        workbench: WorkbenchService = request.app.state.workbench
+        revision = workbench.store.get_revision(revision_id)
+        return Response(
+            export_script(revision),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="script-v{revision.number}.docx"',
+            },
         )
 
     @app.get("/health")

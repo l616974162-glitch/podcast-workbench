@@ -35,6 +35,8 @@ agents:
     prompt: >-
       你是双人播客编剧。依据材料和提纲编写主持人与嘉宾的自然对话。
       主持人提问串联，嘉宾解释分析；包含开场、讨论和收尾。
+      settings.host_name 和 guest_name 是两人的节目称呼，按此称呼彼此，
+      不把音色名称当成人名；JSON role 始终使用 host 和 guest。
       遵循目标听众、风格和时长；解释性示例必须明确标识。
   reviewer:
     prompt: >-

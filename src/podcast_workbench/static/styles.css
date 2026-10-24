@@ -11,3 +11,23 @@ button:disabled.new-button{opacity:.5}
 @media(pointer:coarse){button,.duration-options span{min-height:44px}.revision-composer button{width:44px;height:44px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 #connection-status{margin:0 0 22px}.script-turn p,.review-copy{white-space:pre-wrap;overflow-wrap:anywhere}#resume-job{display:block;margin:16px auto}a.link-button{display:inline-block}button:disabled{opacity:.55}#source-text:read-only{background:var(--raised)}
+.source-guide{margin-top:10px;line-height:1.8}
+.speaker-settings{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:10px}
+.speaker-setting{min-width:0;display:grid;gap:10px;align-content:start}
+.speaker-setting input{display:block;width:100%;min-width:0;margin-top:7px;padding:9px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:13px}
+.speaker-setting select{font-size:12px;padding-left:9px}.voices-field>.tiny-note{margin-top:11px}
+.dialog-top{align-items:center}.dialog-top h2{line-height:1.5;min-width:0}
+.dialog-top #help-close{width:36px;height:36px;min-height:36px;flex:0 0 36px;display:grid;place-items:center;padding:0;line-height:1}
+#help-close svg{display:block;width:18px;height:18px}
+#panel-script.is-collapsed{max-height:360px;overflow:hidden;mask-image:linear-gradient(to bottom,#000 0%,#000 calc(100% - 36px),transparent 100%)}
+.script-expand{display:block;width:100%;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--primary);font-size:12px;margin:12px 0}
+.script-expand:hover{background:var(--tint)}.script-exports{display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end}.script-footer{flex-wrap:wrap}.speaker-label{overflow-wrap:anywhere;line-height:1.7}
+.is-making .working-mark{border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:work-spin 1s linear infinite}
+.is-making .state-badge{animation:work-pulse 1.8s ease-in-out infinite}
+.is-making .stage-list .current .stage-number{animation:work-pulse 1.8s ease-in-out infinite}
+.is-making #create-button svg{animation:work-pulse 1.4s ease-in-out infinite}
+.stage-list li{transition:background .2s,color .2s}
+@keyframes work-spin{to{transform:rotate(360deg)}}
+@keyframes work-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media(max-width:767px){.speaker-setting input{font-size:16px;min-height:44px}.speaker-setting select{font-size:14px}.dialog-top #help-close{width:44px;height:44px;min-height:44px;flex-basis:44px}.script-footer>span{max-width:none}.script-exports{justify-content:flex-start}.script-expand{min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

@@ -38,6 +38,7 @@ GET /jobs/{job_id} 返回 queued／running／succeeded／failed、stage、revisi
 - GET /sessions/{session_id}：返回原材料、有效节目设置、消息、当前脚本、活动任务、上一版成功音频。audio_is_stale 表示旧音频属于之前脚本版本。
 - GET /sessions/{session_id}/artifacts：返回所有已登记版本的产物数组；前端按 revision_id 区分，不从脚本正文猜路径。
 - GET /artifacts/{artifact_id}：读取文本或 WAV，音频支持 HTTP Range；加 ?download=true 使用下载响应头。未知、丢失或越出输出目录的文件返回 404。
+- GET /revisions/{revision_id}/document：按指定脚本版本导出完整 DOCX 对话文档，包含节目标题、版本与自定义称呼，不受网页折叠影响。
 - GET /health：返回 llm_configured、tts_configured、tts_protocol、default_voices、ffmpeg_available、frontend_connected=true、max_source_chars。frontend_connected 表示已挂载网页；不代表真实模型调用成功。Edge 无需密钥，因此 tts_configured 可为 true，但不代表网络服务已验证可用。
 
 GET 等独立请求会分配自己的 X-Trace-ID 响应头；任务查询正文中的 trace_id 保留原制作任务标识，不能用轮询请求头替换制作链路标识。
@@ -56,3 +57,5 @@ GET 等独立请求会分配自己的 X-Trace-ID 响应头；任务查询正文�
 | 500 | 内部环境错误，正文不含原始异常 |
 
 后台错误分类为 upstream_error、invalid_output、audio_error、interrupted、internal_error，使用固定可读消息。强制关闭服务后不自动续跑，下一次启动将活动任务标记 interrupted。CLI 与 API 不要同时操作同一数据库，不使用多 worker。
+
+settings 新增 host_name／guest_name，默认主持人／嘉宾，长度 1–20 字；用于生成与导出。render_audio 仍只接受 host_voice／guest_voice，不能以纯配音请求更改称呼或台词。
