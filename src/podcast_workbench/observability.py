@@ -27,8 +27,10 @@ class _Record(BaseModel):
     session_id: UUID
     job_id: UUID | None = None
     revision_id: UUID | None = None
-    node: Literal["researcher", "writer", "reviewer", "tts", "audio_merge"] | None = None
-    provider: Literal["deepseek", "qwen", "edge"] | None = None
+    node: Literal[
+        "researcher", "writer", "reviewer", "tts", "audio_merge", "cover_planner", "image",
+    ] | None = None
+    provider: Literal["deepseek", "qwen", "edge", "agnes"] | None = None
     status: Literal["queued", "running", "succeeded", "failed"] = "running"
     duration_ms: float | None = Field(default=None, ge=0)
     error_code: ErrorCode | None = None

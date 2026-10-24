@@ -13,6 +13,7 @@ from podcast_workbench.models import (
     Action,
     Artifact,
     ChatRequest,
+    CoverPlan,
     ErrorCode,
     Job,
     JobStatus,
@@ -73,6 +74,15 @@ CREATE TABLE IF NOT EXISTS artifacts (
     id TEXT PRIMARY KEY,
     revision_id TEXT NOT NULL REFERENCES revisions(id),
     payload TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cover_plans (
+    job_id TEXT PRIMARY KEY REFERENCES jobs(id),
+    revision_id TEXT NOT NULL REFERENCES revisions(id),
+    payload TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS published_covers (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+    artifact_id TEXT NOT NULL REFERENCES artifacts(id)
 );
 """
 
@@ -178,10 +188,15 @@ class Store:
         with self._connection() as conn:
             return self._load(conn, "revisions", revision_id, Revision)
 
-    def create_job(self, session_id: Id, action: Action, trace_id: UUID) -> Job:
+    def create_job(
+        self, session_id: Id, action: Action, trace_id: UUID,
+        *, expected_revision_id: UUID | None = None,
+    ) -> Job:
         with self._connection(write=True) as conn:
             session = self._session_row(conn, session_id)
             revision_id = session["current_revision_id"]
+            if expected_revision_id is not None and revision_id != str(expected_revision_id):
+                raise StateConflictError("脚本版本已变化，请刷新后重试。")
             job = Job(session_id=UUID(str(session_id)), action=action, trace_id=trace_id,
                       revision_id=UUID(revision_id) if revision_id else None)
             try:
@@ -286,6 +301,37 @@ class Store:
             )
             return [Artifact.model_validate_json(row["payload"]) for row in rows]
 
+    def save_cover_plan(self, plan: CoverPlan) -> None:
+        with self._connection(write=True) as conn:
+            job = self._load(conn, "jobs", plan.job_id, Job)
+            if (job.status != "running" or job.action != "plan_cover"
+                    or job.revision_id != plan.revision_id):
+                raise StateConflictError("封面策划必须对应正在运行的任务版本。")
+            conn.execute("INSERT INTO cover_plans VALUES(?,?,?)", (
+                str(plan.job_id), str(plan.revision_id), plan.model_dump_json(),
+            ))
+
+    def get_cover_plan(self, job_id: Id) -> CoverPlan | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT payload FROM cover_plans WHERE job_id=?", (str(job_id),),
+            ).fetchone()
+            return CoverPlan.model_validate_json(row["payload"]) if row else None
+
+    def publish_cover(self, session_id: Id, revision_id: Id, artifact_id: Id) -> None:
+        with self._connection(write=True) as conn:
+            session = self._session_row(conn, session_id)
+            revision = self._load(conn, "revisions", revision_id, Revision)
+            artifact = self._load(conn, "artifacts", artifact_id, Artifact)
+            if (str(revision.session_id) != str(session_id)
+                    or session["current_revision_id"] != str(revision_id)
+                    or artifact.revision_id != revision.id or artifact.kind != "image"
+                    or not artifact.path.is_file() or artifact.path.stat().st_size == 0):
+                raise StateConflictError("封面必须是当前会话版本的完整图像。")
+            conn.execute("INSERT INTO published_covers VALUES(?,?) "
+                         "ON CONFLICT(session_id) DO UPDATE SET artifact_id=excluded.artifact_id",
+                         (str(session_id), str(artifact_id)))
+
     def get_session(self, session_id: Id) -> Session:
         with self._connection() as conn:
             row = self._session_row(conn, session_id)
@@ -293,6 +339,15 @@ class Store:
                         if row["current_revision_id"] else None)
             audio = (self._load(conn, "artifacts", row["published_audio_id"], Artifact)
                      if row["published_audio_id"] else None)
+            cover_row = conn.execute(
+                "SELECT artifact_id FROM published_covers WHERE session_id=?", (str(session_id),),
+            ).fetchone()
+            cover = (self._load(conn, "artifacts", cover_row["artifact_id"], Artifact)
+                     if cover_row else None)
+            plan_row = conn.execute(
+                "SELECT payload FROM cover_plans WHERE revision_id=? ORDER BY rowid DESC LIMIT 1",
+                (row["current_revision_id"],),
+            ).fetchone()
             active = conn.execute(
                 "SELECT payload FROM jobs WHERE session_id=? AND status IN ('queued','running')",
                 (str(session_id),),
@@ -303,7 +358,8 @@ class Store:
             return Session(
                 id=UUID(row["id"]), source_text=row["source_text"],
                 settings=ProgramSettings.model_validate_json(row["settings_json"]),
-                current_revision=revision, published_audio=audio,
+                current_revision=revision, published_audio=audio, published_cover=cover,
+                cover_plan=CoverPlan.model_validate_json(plan_row["payload"]) if plan_row else None,
                 active_job=Job.model_validate_json(active["payload"]) if active else None,
                 messages=[Message.model_validate_json(message["payload"]) for message in messages],
             )

@@ -8,6 +8,7 @@ import httpx
 
 from podcast_workbench.audio import AudioRenderer
 from podcast_workbench.config import ConfigError, Settings
+from podcast_workbench.covers import CoverWorkflow
 from podcast_workbench.errors import ServiceError
 from podcast_workbench.graph import PodcastGraph
 from podcast_workbench.llm import DeepSeekClient
@@ -15,6 +16,7 @@ from podcast_workbench.media import resolve_ffmpeg
 from podcast_workbench.models import (
     Artifact,
     ChatRequest,
+    CoverOptions,
     ErrorCode,
     Job,
     ProgramSettings,
@@ -24,7 +26,7 @@ from podcast_workbench.models import (
 from podcast_workbench.observability import EventLogger, RunContext
 from podcast_workbench.scripts import ScriptWorkflow, merge_settings
 from podcast_workbench.store import BusySessionError, StateConflictError, Store
-from podcast_workbench.tools.registry import create_tts_client
+from podcast_workbench.tools.registry import create_image_client, create_tts_client
 
 
 class RequestError(ValueError):
@@ -48,19 +50,28 @@ class WorkbenchService:
         scripts: ScriptWorkflow,
         audio: Renderer,
         logger: EventLogger,
+        covers: CoverWorkflow | None = None,
     ) -> None:
         self.config = config
         self.store = store
         self.scripts = scripts
         self.audio = audio
         self.logger = logger
+        self.covers = covers
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
 
     def submit(self, request: ChatRequest, trace_id: UUID | None = None) -> Job:
-        needs_text = request.action != "render_audio"
-        needs_audio = request.action == "render_audio" or not request.preview_only
+        cover_action = request.action in {"plan_cover", "generate_cover"}
+        needs_text = request.action in {"create", "revise", "plan_cover"}
+        needs_audio = (request.action == "render_audio"
+                       or request.action in {"create", "revise"} and not request.preview_only)
         if needs_text and not self.config.llm.api_key.get_secret_value().strip():
             raise ConfigError("请在本地 .env 填写 DEEPSEEK_API_KEY。")
+        if cover_action and self.covers is None:
+            raise ConfigError("封面服务尚未初始化。")
+        if (request.action == "generate_cover"
+                and not self.config.image.api_key.get_secret_value().strip()):
+            raise ConfigError("请在本地 .env 填写 AGNES_API_KEY 并重启后台。")
         if needs_audio:
             if (
                 self.config.tts.needs_api_key
@@ -76,6 +87,9 @@ class WorkbenchService:
             raise RequestError("生成音频只接受音色设置；修改内容请使用 revise。")
         if request.session_id is not None:
             session = self.store.get_session(request.session_id)
+            if cover_action and (session.current_revision is None
+                                 or request.revision_id != session.current_revision.id):
+                raise StateConflictError("封面需要对应当前脚本，请刷新后重试。")
             if request.action == "render_audio" and session.current_revision is None:
                 raise StateConflictError("该会话尚无脚本，请先生成脚本。")
             selected = merge_settings(session.settings, request.settings)
@@ -112,7 +126,10 @@ class WorkbenchService:
         if session_id is None:
             assert request.source_text is not None
             session_id = self.store.create_session(request.source_text, selected)
-        job = self.store.create_job(session_id, request.action, trace_id or uuid4())
+        job = self.store.create_job(
+            session_id, request.action, trace_id or uuid4(),
+            expected_revision_id=request.revision_id if cover_action else None,
+        )
         task = asyncio.create_task(self._run(job, request, selected))
         self._tasks[job.id] = task
         task.add_done_callback(lambda _: self._tasks.pop(job.id, None))
@@ -133,13 +150,27 @@ class WorkbenchService:
         try:
             self.store.transition_job(job.id, "running")
             ctx.emit("run.start")
-            if request.action == "render_audio":
+            if request.action in {"plan_cover", "generate_cover"}:
+                assert self.covers is not None and job.revision_id is not None
+                revision = self.store.get_revision(job.revision_id)
+                ctx.revision_id = revision.id
+                options = request.cover or CoverOptions()
+                if request.action == "plan_cover":
+                    self.store.save_cover_plan(await self.covers.plan(revision, options, ctx))
+                else:
+                    image = await self.covers.image.execute(
+                        revision, options, self.config.app.output_dir, ctx,
+                    )
+                    self.store.save_artifact(image)
+                    self.store.publish_cover(job.session_id, revision.id, image.id)
+            elif request.action == "render_audio":
                 assert job.revision_id is not None
                 revision = self.store.get_revision(job.revision_id)
             else:
                 revision = await self.scripts.run(job, request, ctx)
             ctx.revision_id = revision.id
-            if request.action == "render_audio" or not request.preview_only:
+            if (request.action == "render_audio"
+                    or request.action in {"create", "revise"} and not request.preview_only):
                 artifact = await self.audio.render(revision, selected, ctx)
                 artifact = artifact.model_copy(update={"job_id": job.id})
                 self.store.save_artifact(artifact)
@@ -183,4 +214,7 @@ def create_service(config: Settings, http: httpx.AsyncClient) -> WorkbenchServic
             config.app.output_dir,
         ),
         EventLogger(config.app.log_dir / "agent.log"),
+        CoverWorkflow(
+            config, DeepSeekClient(config.llm, http), create_image_client(config.image, http),
+        ),
     )

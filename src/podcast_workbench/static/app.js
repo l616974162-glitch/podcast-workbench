@@ -68,6 +68,7 @@ function controls() {
   document.querySelector(".output-column").setAttribute("aria-busy", String(busy));
   document.body.classList.toggle("is-making", busy);
   workbenchUI.sync(busy);
+  coverUI.sync(session, health, busy);
   const length = [...$("source-text").value.trim()].length;
   const validSource = length > 0 && length <= (health?.max_source_chars || 20000);
   $("character-count").textContent = length.toLocaleString();
@@ -164,6 +165,12 @@ function progress(job) {
   $("running-output").hidden = false;
   $("empty-output").hidden = true;
   $("state-badge").textContent = "制作中";
+  const isCover = ["plan_cover", "generate_cover"].includes(job.action);
+  document.querySelector(".stage-list").hidden = isCover;
+  if (isCover) {
+    $("running-title").textContent = job.action === "plan_cover" ? "正在整理封面描述" : "正在生成节目封面";
+    return;
+  }
   const index = stages.indexOf(job.stage);
   $("running-title").textContent = stageNames[index] || "任务已排队";
   document.querySelectorAll(".stage-list li").forEach((li, n) => {
@@ -186,10 +193,11 @@ async function poll() {
       $("empty-output").hidden = Boolean(session.current_revision);
       $("failure-banner").hidden = job.status !== "failed" || !session.current_revision;
       if (job.status === "failed") {
-        $("state-badge").textContent = "制作未完成";
+        $("state-badge").textContent = ["plan_cover", "generate_cover"].includes(job.action) ? "封面操作未完成" : "制作未完成";
+        $("retry-audio").hidden = ["plan_cover", "generate_cover"].includes(job.action);
         document.querySelector("#failure-banner b").textContent = "本次制作未完成，已有内容已保留";
         message(job.error_message || "制作失败，请重试。");
-      } else { message("制作完成，可查看脚本或试听音频。"); }
+      } else { message(job.action === "plan_cover" ? "画面描述已整理，可以编辑后生成封面。" : job.action === "generate_cover" ? "封面生成完成，可以预览和下载。" : "制作完成，可查看脚本或试听音频。"); }
     } else {
       progress(job);
       timer = setTimeout(poll, 1000);
@@ -204,7 +212,7 @@ async function poll() {
   } finally { polling = false; controls(); }
 }
 async function submit(body) {
-  if (pending || jobId || !voiceValid()) return;
+  if (pending || jobId || (!["plan_cover", "generate_cover"].includes(body.action) && !voiceValid())) return;
   pending = true; message(""); $("failure-banner").hidden = true; controls();
   try {
     const accepted = await api("/chat", body);
@@ -248,6 +256,7 @@ $("new-program").addEventListener("click", () => {
   clearTimeout(timer); remember(null); session = null; traceId = "";
   $("material-form").reset(); $("revision-form").reset();
   workbenchUI.reset();
+  coverUI.show("episode");
   $("source-text").value = ""; $("result-output").hidden = true;
   $("running-output").hidden = true; $("empty-output").hidden = false;
   $("failure-banner").hidden = true; $("source-error").hidden = true;

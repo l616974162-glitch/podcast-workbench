@@ -134,6 +134,10 @@ def create_app(
         return {
             **job.model_dump(mode="json"),
             "artifacts": [public_artifact(item) for item in artifacts if item.job_id == job.id],
+            "cover_plan": (
+                plan.model_dump(mode="json")
+                if (plan := workbench.store.get_cover_plan(job.id)) else None
+            ),
         }
 
     @app.get("/sessions/{session_id}")
@@ -141,12 +145,14 @@ def create_app(
         workbench: WorkbenchService = request.app.state.workbench
         session = workbench.store.get_session(session_id)
         return {
-            **session.model_dump(mode="json", exclude={"published_audio"}),
+            **session.model_dump(mode="json", exclude={"published_audio", "published_cover"}),
             "session_id": str(session.id),
             "trace_id": str(request.state.trace_id),
             "published_audio": public_artifact(session.published_audio)
             if session.published_audio
             else None,
+            "published_cover": public_artifact(session.published_cover)
+            if session.published_cover else None,
         }
 
     @app.get("/sessions/{session_id}/artifacts")
@@ -170,7 +176,7 @@ def create_app(
         artifact = workbench.store.get_artifact(artifact_id)
         if not public_artifact(artifact)["available"]:
             raise NotFoundError("产物不可用。")
-        extension = ".wav" if artifact.kind == "audio" else ".txt"
+        extension = {"audio": ".wav", "script": ".txt", "image": ".png"}[artifact.kind]
         return FileResponse(
             artifact.path,
             media_type=artifact.mime_type,
@@ -209,6 +215,8 @@ def create_app(
             "default_voices": config.tts.default_voices(),
             "ffmpeg_available": ffmpeg_available,
             "frontend_connected": True,
+            "image_configured": bool(config.image.api_key.get_secret_value().strip()),
+            "image_model": config.image.model,
             "max_source_chars": min(config.app.max_source_chars, 20000),
         }
 

@@ -1,14 +1,15 @@
 # 文本转双人播客工作台
 
-将中文文章或笔记制作成双人播客，支持脚本审校、多轮修改、双音色语音、播放和下载。
+将中文文章或笔记制作成双人播客，支持脚本审校、多轮修改、双音色语音、节目封面、播放与下载。
 
 当前已连接 C 版网页与后台，默认 **Edge 在线配音**，保留千问兼容路径。支持制作进度、脚本预览、多轮修改、换音色、播放下载与最近会话恢复。原 v0.1.0-backend-preview 标签仍对应先前的千问后端版本。
 
-真实 DeepSeek／千问联调仍待填写密钥。Edge 已完成 9.24 秒双人真实试音，不等于完整播客端到端验收。切换方式和记录见 [Edge 配音说明](docs/edge-tts.md)；原版本细节见[版本说明](docs/releases/v0.1.0-backend-preview.md)，操作见[后端验收步骤](docs/acceptance.md)。
+DeepSeek 三 Agent＋Edge 已完成真实完整音频生成，时长 152.904 秒。新增 Agnes 封面功能已完成代码与隔离测试，用户选择稍后填写密钥，尚未真实生图；千问主链路仍待真实验收。切换方式见 [Edge 配音说明](docs/edge-tts.md)，封面操作见[封面扩展说明](docs/covers.md)。
 
 ## 已确定的技术方向
 
 - LangGraph 编排资料整理、播客编剧、内容审校三个 Agent。
+- 独立的第四个封面策划 Agent 使用 DeepSeek，只在用户点击整理封面描述时运行；Agnes Image 2.5 Flash 负责生图，不混入原三节点 pipeline。
 - DeepSeek 承担文字模型调用；日常默认 Edge 配音，课程验收可切回千问 Qwen-TTS。
 - 默认一次生成完整节目，可选择先预览脚本。
 - FastAPI、SQLite、原生网页；完整成品成功后发布，保留旧版本。
@@ -19,6 +20,7 @@
 
 - [需求与设计](docs/superpowers/specs/2026-10-24-podcast-workbench-design.md)
 - [实施计划](docs/superpowers/plans/2026-10-24-podcast-workbench.md)
+- [封面设计与边界](docs/cover-feature-design.md)
 
 ## 本地安装与配置
 

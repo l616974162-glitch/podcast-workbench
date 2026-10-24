@@ -47,7 +47,9 @@ async def run_request(config_path: Path, request_path: Path) -> int:
         ]
         print(
             json.dumps(
-                {"job": result.model_dump(mode="json"), "artifacts": artifacts}, ensure_ascii=False
+                {"job": result.model_dump(mode="json"), "artifacts": artifacts,
+                 "cover_plan": plan.model_dump(mode="json")
+                 if (plan := service.store.get_cover_plan(job.id)) else None}, ensure_ascii=False
             ),
             flush=True,
         )

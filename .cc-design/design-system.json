@@ -55,5 +55,14 @@
     "speakers": "两条紧凑行，点击编辑称呼或更换声音",
     "program_options": "三个浅紫色自定义选择面板，支持键盘操作",
     "advanced_voice_id": "收在音色弹窗高级设置"
+  },
+  "cover_design": {
+    "selected_id": "a",
+    "selected_style": "A 同屏制作",
+    "selected_at": "2026-10-24",
+    "source": "design/cover-redesign/a.html",
+    "status": "implemented_pending_real_agnes_verification",
+    "layout": "材料优先＋节目／脚本／封面页签",
+    "cover": "无文字、正方形、1K、手动提交"
   }
 }

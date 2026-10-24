@@ -59,3 +59,7 @@ GET 等独立请求会分配自己的 X-Trace-ID 响应头；任务查询正文�
 后台错误分类为 upstream_error、invalid_output、audio_error、interrupted、internal_error，使用固定可读消息。强制关闭服务后不自动续跑，下一次启动将活动任务标记 interrupted。CLI 与 API 不要同时操作同一数据库，不使用多 worker。
 
 settings 新增 host_name／guest_name，默认主持人／嘉宾，长度 1–20 字；用于生成与导出。render_audio 仍只接受 host_voice／guest_voice，不能以纯配音请求更改称呼或台词。
+
+## 封面扩展
+
+POST /chat 支持 plan_cover 与 generate_cover，需指定 session_id、revision_id 以及可选 cover（style、prompt）；generate_cover 必须提供 prompt，均不接受原文或节目设置。任务查询新增 cover_plan；会话新增 cover_plan、published_cover、cover_is_stale，图片通过原产物接口读取。健康检查增加 image_configured、image_model。完整契约及安全边界见 covers.md。

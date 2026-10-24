@@ -10,7 +10,7 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr, ValidationError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SECRET_NAMES = ("DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY")
+SECRET_NAMES = ("DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "AGNES_API_KEY")
 ENV_REFERENCE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
 
 
@@ -70,6 +70,17 @@ class AgentsConfig(ConfigSection):
     researcher: AgentConfig
     writer: AgentConfig
     reviewer: AgentConfig
+    cover_planner: AgentConfig
+
+
+class ImageConfig(ConfigSection):
+    protocol: Literal["agnes_image"] = "agnes_image"
+    api_key: SecretStr
+    endpoint: HttpUrl
+    model: str = Field(min_length=1)
+    timeout_seconds: float = Field(gt=0, le=300)
+    max_image_bytes: int = Field(gt=0, le=20971520)
+    download_hosts: tuple[str, ...] = ("storage.googleapis.com", "apihub.agnes-ai.com")
 
 
 class RuntimeConfig(ConfigSection):
@@ -83,6 +94,7 @@ class RuntimeConfig(ConfigSection):
 class Settings(ConfigSection):
     llm: LLMConfig
     tts: TTSConfig
+    image: ImageConfig
     pipeline: PipelineConfig
     agents: AgentsConfig
     app: RuntimeConfig
@@ -136,7 +148,7 @@ def load_config(
         raise ConfigError("无法读取配置，请检查文件是否存在及 YAML 格式。") from None
     if not isinstance(raw, dict):
         raise ConfigError("配置必须是 YAML 对象。")
-    for section, name in zip(("llm", "tts"), SECRET_NAMES, strict=True):
+    for section, name in zip(("llm", "tts", "image"), SECRET_NAMES, strict=True):
         entry = raw.get(section)
         if not isinstance(entry, dict) or entry.get("api_key") != "${" + name + "}":
             raise ConfigError("api_key 必须引用指定环境变量，不能写入明文密钥。")
