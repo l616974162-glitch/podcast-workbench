@@ -30,8 +30,8 @@
 
 - [x] 核实供应商当前模型名、千问请求参数、音色和限制，将核实结果与来源写入 README。检查 Python 和 FFmpeg，不擅自下载未知二进制。
 - [x] 创建最小 Python 项目和开发依赖，忽略 .env、.venv、output、logs、SQLite 文件、缓存。
-- [ ] 编写模型测试：空白材料、超长材料、非法时长、无 session_id 的修改必须拒绝；合法设置保留用户值。配置测试验证环境引用与缺失密钥错误不暴露值。
-- [ ] 运行 pytest tests/test_models.py tests/test_config.py，确认失败来自待实现行为；实现 Pydantic 验证及环境解析，重跑通过。
+- [x] 编写模型测试：空白材料、超长材料、非法时长、无 session_id 的修改必须拒绝；合法设置保留用户值。配置测试验证环境引用与缺失密钥错误不暴露值。
+- [x] 先运行缺少实现的测试，再实现配置／业务模型并确认通过。业务模型按用户顺序在阶段 2 完成。
 - [x] 运行阶段 1 配置与 CLI 的 10 项测试、ruff check 和 mypy，保存本地提交；业务输入模型留到阶段 2。
 
 ## Task 2 会话和任务存储
@@ -40,10 +40,10 @@
 
 **Interfaces:** Store.create_session() -> str；Store.save_revision(session_id, script) -> str；Store.publish_audio(session_id, revision_id, artifact_id) -> None；Store.get_session(session_id) -> dict；任务记录包含 status、stage、trace_id、error。
 
-- [ ] 测试两个会话隔离、修订不可覆盖、失败任务不改变上一版成功产物、同一会话并发任务被拒绝。
-- [ ] 运行对应 pytest 观察失败，然后用 SQLite 事务实现状态变化、修订与产物索引。
-- [ ] 测试日志可通过 trace_id 串联；给错误样本加入虚构密钥和签名 URL，断言不出现在落盘日志中。
-- [ ] 实现受控字段 JSONL 日志，不直接序列化异常响应；重跑测试，提交。
+- [x] 测试两个会话隔离、修订不可覆盖、失败任务不改变上一版成功产物、同一会话并发任务被拒绝。
+- [x] 运行对应 pytest 观察失败，然后用 SQLite 事务实现状态变化、修订与产物索引。
+- [x] 测试日志可通过 trace_id 串联；给错误样本加入虚构密钥和签名 URL，断言不出现在落盘日志中。
+- [x] 实现受控字段 JSONL 日志，不直接序列化异常响应；重跑测试，保存阶段本地提交。
 
 ## Task 3 DeepSeek 三 Agent 流水线
 

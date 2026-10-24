@@ -2,7 +2,7 @@
 
 将中文文章或笔记制作成双人播客，支持脚本审校、多轮修改、双音色语音、播放和下载。
 
-当前完成范围为第一阶段项目基础与离线配置检查；尚无网页、制作接口或真实服务联调结果。
+当前已完成第二阶段：项目基础、业务数据结构、SQLite 会话／任务存储与安全日志。尚无网页、制作接口或真实服务联调结果，当前不是完整第一版。
 
 ## 已确定的技术方向
 
@@ -72,4 +72,27 @@ doctor 和 check-config 均不发起网络请求、不计费。离线检查允�
 & .\.venv\Scripts\python.exe -m mypy
 ```
 
-[开发进度](docs/progress.md)记录用户确认的八阶段顺序。后续按此顺序推进，本阶段没有实现第二阶段的业务输入模型、存储或任何播客制作功能。
+[开发进度](docs/progress.md)记录用户确认的八阶段顺序和逐阶段验证结果。[第一版发布清单](docs/release-checklist.md)记录用户授权的远程发布条件和备注要求。
+
+## 第二阶段数据能力
+
+- 创建材料会话，保存节目设置和消息；重新打开 SQLite 后仍可读取。
+- 脚本按版本号保存独立快照，任务与产物关联明确的版本。
+- 数据库唯一索引控制同一会话的活动任务；终态不能回退，遗留任务可在启动时标记中断。
+- 新版失败不覆盖旧音频，音频元数据记录实际音色；发布时验证会话、版本及文件存在性。
+- JSONL 日志只允许受控字段，不保存原始供应商响应与异常文本。
+
+使用示例（模块级能力，目前没有 HTTP 接口）：
+
+```python
+from pathlib import Path
+from podcast_workbench.models import ProgramSettings
+from podcast_workbench.store import Store
+
+store = Store(Path("data/workbench.sqlite3"))
+session_id = store.create_session("待制作播客的原文材料。", ProgramSettings())
+session = store.get_session(session_id)
+print(session.id, session.settings.target_minutes)
+```
+
+注意：数据库包含原文和会话内容，虽然被 Git 忽略，仍是本地用户数据；需要自行妥善保管。产物内部索引包含本地路径，后续 API 必须转换为产物 URL，不能直接把内部模型返回浏览器。发布索引的文件检查不代表音频完整性验证，完整性检查将在音频阶段实现。
