@@ -2,7 +2,7 @@
 
 将中文文章或笔记制作成双人播客，支持脚本审校、多轮修改、双音色语音、播放和下载。
 
-当前工作分支新增 **Edge 在线配音（默认）**，保留千问切换；原 v0.1.0-backend-preview 标签仍对应先前的千问后端版本。三 Agent、脚本修改、双引擎语音、后台任务、API 和命令行入口已实现，前端仍未连接。
+当前已连接 C 版网页与后台，默认 **Edge 在线配音**，保留千问兼容路径。支持制作进度、脚本预览、多轮修改、换音色、播放下载与最近会话恢复。原 v0.1.0-backend-preview 标签仍对应先前的千问后端版本。
 
 真实 DeepSeek／千问联调仍待填写密钥。Edge 已完成 9.24 秒双人真实试音，不等于完整播客端到端验收。切换方式和记录见 [Edge 配音说明](docs/edge-tts.md)；原版本细节见[版本说明](docs/releases/v0.1.0-backend-preview.md)，操作见[后端验收步骤](docs/acceptance.md)。
 
@@ -75,13 +75,15 @@ run 支持与 POST /chat 相同的 JSON 请求；连续修改、单独制作音�
 
 ## 后端 API
 
-目前没有运行中的服务或网页。需要单独验收 API 时，由用户手动运行：
+在仓库目录启动本地网页和 API（同一服务）：
 
 ```powershell
 & .\.venv\Scripts\python.exe -m uvicorn podcast_workbench.api:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-仅启动本地 API，不启动浏览器；未挂载静态页面、未启用 CORS，根路径和 /docs 返回 404。不要配置多 worker 或直接暴露公网。接口契约见 [API 说明](docs/api.md)，机器可读定义位于 /openapi.json。
+启动后打开 http://127.0.0.1:8000/ 。网页与 API 同源，无需 CORS；/docs 保持关闭。不要配置多 worker 或直接暴露公网。填好或修改 .env 后需重启服务。已有服务运行时不要再开第二个实例或同时运行 CLI。接口契约见 [API 说明](docs/api.md)，机器可读定义位于 /openapi.json。
+
+网页验收和测试边界见 [前后端对接记录](docs/connected-ui.md)。缺少 DeepSeek 密钥时页面明确提示配置，不能生成脚本；Edge 配音本身不需要 TTS 密钥。会话恢复仅在当前浏览器记录最近会话编号，原材料和脚本保存在本地 SQLite 中。
 
 | 接口 | 用途 |
 | --- | --- |

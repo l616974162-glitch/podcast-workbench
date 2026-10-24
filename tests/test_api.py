@@ -43,7 +43,7 @@ def test_preview_session_restore_and_safe_artifact_download(tmp_path: Path) -> N
         result = client.get(artifacts[0]["url"] + "?download=true")
         assert result.status_code == 200 and "attachment" in result.headers["Content-Disposition"]
         assert "主持人" in result.text
-        assert client.get("/").status_code == 404
+        assert client.get("/").status_code == 200
         assert client.get("/docs").status_code == 404
 
 

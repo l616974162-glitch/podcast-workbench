@@ -90,7 +90,7 @@ def main() -> int:
             print("FFmpeg：已找到（系统命令或项目随包版本）。")
         except ServiceError:
             print("FFmpeg：未找到，请安装依赖或配置 FFMPEG_PATH。")
-        print("当前提供后端 API 和命令行制作，尚未连接网页前端。")
+        print("当前提供同源网页、后端 API 和命令行制作；启动方式见 README。")
     return 0
 
 

@@ -1,4 +1,4 @@
-"""仅提供本地后端 API，不提供网页、不设置跨域连接、不启动浏览器。"""
+"""本地工作台页面与同源业务 API。"""
 
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -9,6 +9,7 @@ import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from podcast_workbench.config import ConfigError, Settings, load_config
 from podcast_workbench.errors import ServiceError
@@ -48,6 +49,12 @@ def create_app(
         docs_url=None,
         redoc_url=None,
     )
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    @app.get("/")
+    async def home() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
     def error(request: Request, status: int, code: str, message: str) -> JSONResponse:
         return JSONResponse(
@@ -179,7 +186,7 @@ def create_app(
             ffmpeg_available = False
         return {
             "status": "ok",
-            "scope": "backend-preview",
+            "scope": "workbench",
             "trace_id": str(request.state.trace_id),
             "llm_configured": bool(config.llm.api_key.get_secret_value().strip()),
             "tts_configured": (
@@ -188,7 +195,8 @@ def create_app(
             "tts_protocol": config.tts.protocol,
             "default_voices": config.tts.default_voices(),
             "ffmpeg_available": ffmpeg_available,
-            "frontend_connected": False,
+            "frontend_connected": True,
+            "max_source_chars": min(config.app.max_source_chars, 20000),
         }
 
     return app

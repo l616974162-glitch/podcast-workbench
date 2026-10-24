@@ -43,7 +43,7 @@ DASHSCOPE_API_KEY=在本地填写北京地域的真实密钥
 - 缓存包含引擎标识，Edge 不复用千问片段；角色、文本、音色、参数不变的同引擎片段可复用。
 - 正式音频元数据记录 tts_protocol 和实际 audio_settings，日志 provider 为 edge 或 qwen。
 - 超时、空流、超限与解码失败不发布成品，清理临时文件并保留旧结果。
-- 前端仍是离线设计稿。正式对接应读取 /health 的 tts_protocol 和 default_voices，不能把千问音色直接发送给 Edge。
+- 网页已对接，启动时读取 /health 的 tts_protocol 和 default_voices，默认显示晓晓与云希；只换音色使用 render_audio，跳过三次 LLM 调用。
 
 ## 验证记录
 

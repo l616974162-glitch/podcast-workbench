@@ -1,6 +1,6 @@
 # 后端接口契约
 
-版本：v0.1.0-backend-preview。未对接前端，未开启跨域或鉴权；仅用于本机单进程。默认不启动服务，用户需要时按 README 手动运行。
+当前网页已通过同源 API 对接，GET / 返回正式界面，/static 只提供打包的页面资源；未开启跨域或鉴权，仅用于本机单进程。按 README 启动。
 
 ## 创建与修改
 
@@ -38,7 +38,7 @@ GET /jobs/{job_id} 返回 queued／running／succeeded／failed、stage、revisi
 - GET /sessions/{session_id}：返回原材料、有效节目设置、消息、当前脚本、活动任务、上一版成功音频。audio_is_stale 表示旧音频属于之前脚本版本。
 - GET /sessions/{session_id}/artifacts：返回所有已登记版本的产物数组；前端按 revision_id 区分，不从脚本正文猜路径。
 - GET /artifacts/{artifact_id}：读取文本或 WAV，音频支持 HTTP Range；加 ?download=true 使用下载响应头。未知、丢失或越出输出目录的文件返回 404。
-- GET /health：返回 llm_configured、tts_configured、tts_protocol、default_voices、ffmpeg_available、frontend_connected=false。Edge 无需密钥，因此 tts_configured 可为 true，但不代表网络服务已验证可用。
+- GET /health：返回 llm_configured、tts_configured、tts_protocol、default_voices、ffmpeg_available、frontend_connected=true、max_source_chars。frontend_connected 表示已挂载网页；不代表真实模型调用成功。Edge 无需密钥，因此 tts_configured 可为 true，但不代表网络服务已验证可用。
 
 GET 等独立请求会分配自己的 X-Trace-ID 响应头；任务查询正文中的 trace_id 保留原制作任务标识，不能用轮询请求头替换制作链路标识。
 
