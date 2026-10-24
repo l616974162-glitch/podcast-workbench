@@ -1,5 +1,7 @@
 """仅记录受控结构字段，不保存供应商响应、异常正文或请求材料。"""
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
@@ -8,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from podcast_workbench.models import ErrorCode, utc_now
+from podcast_workbench.models import ErrorCode, Stage, utc_now
 
 
 class _Record(BaseModel):
@@ -46,3 +48,24 @@ class EventLogger:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as stream:
                 stream.write(line)
+
+
+@dataclass
+class RunContext:
+    trace_id: UUID
+    session_id: UUID
+    job_id: UUID
+    logger: EventLogger
+    revision_id: UUID | None = None
+    on_stage: Callable[[Stage], None] | None = None
+
+    def emit(self, event: str, **fields: object) -> None:
+        self.logger.emit({
+            **fields, "event": event, "trace_id": self.trace_id,
+            "session_id": self.session_id, "job_id": self.job_id,
+            "revision_id": self.revision_id,
+        })
+
+    def stage(self, stage: Stage) -> None:
+        if self.on_stage is not None:
+            self.on_stage(stage)

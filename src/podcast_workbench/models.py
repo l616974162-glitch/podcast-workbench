@@ -68,6 +68,12 @@ class Turn(Model):
     text: str = Field(min_length=1, max_length=4000)
 
 
+class Analysis(Model):
+    key_points: list[str] = Field(min_length=1)
+    outline: list[str] = Field(min_length=1)
+    information_gaps: list[str] = Field(default_factory=list)
+
+
 class Script(Model):
     title: str = Field(min_length=1, max_length=200)
     summary: str = Field(min_length=1, max_length=2000)
