@@ -4,7 +4,7 @@
   "selected_style": "C 文稿编辑室",
   "selected_id": "editorial",
   "selected_at": "2026-10-24",
-  "status": "style_selected_frontend_not_connected",
+  "status": "frontend_connected",
   "design_system": {
     "colors": {
       "primary": "#7052a3",
@@ -45,6 +45,15 @@
     "Respect prefers-reduced-motion",
     "Cover empty, running, script-ready, audio-ready, stale-audio and failed states",
     "Keep session_id and trace_id available for acceptance",
-    "No backend connection until the static frontend design stage is complete"
-  ]
+    "Approved layout uses same-origin API with live task progress"
+  ],
+  "selected_component": "D 材料优先与紧凑说话人",
+  "component_selected_at": "2026-10-24",
+  "component_design": {
+    "source": "design/speaker-options/d.html",
+    "material_editor_height": "300px",
+    "speakers": "两条紧凑行，点击编辑称呼或更换声音",
+    "program_options": "三个浅紫色自定义选择面板，支持键盘操作",
+    "advanced_voice_id": "收在音色弹窗高级设置"
+  }
 }

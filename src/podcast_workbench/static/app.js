@@ -49,16 +49,11 @@ function identifiers() {
 function settings() {
   return {audience: $("audience").value, style: $("style").value,
     host_name: $("host-name").value.trim() || "主持人", guest_name: $("guest-name").value.trim() || "嘉宾",
-    target_minutes: Number(document.querySelector('input[name="minutes"]:checked').value),
+    target_minutes: Number($("minutes").value),
     host_voice: selectedVoice("host"), guest_voice: selectedVoice("guest")};
 }
 function selectedVoice(role) {
-  return $(role + "-voice").value === "custom" ? $(role + "-custom-voice").value.trim() : $(role + "-voice").value;
-}
-function customVoiceFields() {
-  for (const role of ["host", "guest"]) {
-    $(role + "-custom-voice").closest("label").hidden = $(role + "-voice").value !== "custom";
-  }
+  return $(role + "-voice").value;
 }
 function voiceValid() {
   const voices = [selectedVoice("host"), selectedVoice("guest")];
@@ -72,7 +67,7 @@ function controls() {
   const busy = pending || Boolean(jobId);
   document.querySelector(".output-column").setAttribute("aria-busy", String(busy));
   document.body.classList.toggle("is-making", busy);
-  customVoiceFields();
+  workbenchUI.sync(busy);
   const length = [...$("source-text").value.trim()].length;
   const validSource = length > 0 && length <= (health?.max_source_chars || 20000);
   $("character-count").textContent = length.toLocaleString();
@@ -95,13 +90,9 @@ function fillSettings(value) {
   $("guest-name").value = value.guest_name || "嘉宾";
   $("audience").value = value.audience;
   $("style").value = value.style;
-  document.querySelector(`input[name="minutes"][value="${value.target_minutes}"]`).checked = true;
+  $("minutes").value = String(value.target_minutes);
   for (const field of ["host_voice", "guest_voice"]) {
-    const select = $(field.replace("_", "-"));
-    if (![...select.options].some(option => option.value === value[field])) {
-      select.add(new Option(`${value[field]}（原音色，请检查当前服务是否支持）`, value[field]));
-    }
-    select.value = value[field];
+    $(field.replace("_", "-")).value = value[field];
   }
 }
 function scriptDisclosure() {
@@ -256,6 +247,7 @@ $("new-program").addEventListener("click", () => {
   if (pending || jobId) return;
   clearTimeout(timer); remember(null); session = null; traceId = "";
   $("material-form").reset(); $("revision-form").reset();
+  workbenchUI.reset();
   $("source-text").value = ""; $("result-output").hidden = true;
   $("running-output").hidden = true; $("empty-output").hidden = false;
   $("failure-banner").hidden = true; $("source-error").hidden = true;
@@ -282,6 +274,7 @@ document.querySelectorAll("[data-tab]").forEach((button, index, tabs) => {
 $("help-open").addEventListener("click", () => $("help-dialog").showModal());
 $("help-close").addEventListener("click", () => $("help-dialog").close());
 $("material-form").addEventListener("input", controls);
+document.addEventListener("workbench-settings", controls);
 $("revision-text").addEventListener("input", controls);
 $("script-expand").addEventListener("click", () => {
   scriptExpanded = !scriptExpanded;
@@ -292,13 +285,7 @@ window.addEventListener("resize", () => { if (session?.current_revision) scriptD
 async function init() {
   try {
     health = await api("/health");
-    const voices = health.tts_protocol === "edge_tts" ? [["zh-CN-XiaoxiaoNeural", "晓晓 · 女声"], ["zh-CN-YunxiNeural", "云希 · 男声"]] : [["Cherry", "芊悦 Cherry"], ["Ethan", "晨煦 Ethan"], ["Serena", "苏瑶 Serena"]];
-    ["host-voice", "guest-voice"].forEach((id, index) => {
-      $(id).replaceChildren(...voices.map(([value, label]) => new Option(label, value)));
-      if (health.tts_protocol === "edge_tts") $(id).add(new Option("自定义 Edge 音色…", "custom"));
-      $(id).value = health.default_voices[index];
-      for (const option of $(id).options) option.defaultSelected = option.selected;
-    });
+    workbenchUI.configure(health);
     const issues = [];
     if (!health.llm_configured) issues.push("请在本地 .env 填写 DEEPSEEK_API_KEY 并重启后台，再生成脚本");
     if (!health.ffmpeg_available) issues.push("音频合成组件不可用，请检查 FFmpeg 配置");
