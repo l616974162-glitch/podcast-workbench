@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from time import perf_counter
+from typing import Protocol
 from uuid import UUID
 
 import httpx
@@ -11,6 +12,18 @@ from podcast_workbench.config import TTSConfig
 from podcast_workbench.errors import ServiceError
 from podcast_workbench.models import Artifact, ProgramSettings
 from podcast_workbench.observability import RunContext
+
+
+class SpeechClient(Protocol):
+    async def execute(
+        self,
+        text: str,
+        voice: str,
+        destination: Path,
+        revision_id: UUID,
+        settings: ProgramSettings,
+        ctx: RunContext,
+    ) -> Artifact: ...
 
 
 class ToolClient(ABC):

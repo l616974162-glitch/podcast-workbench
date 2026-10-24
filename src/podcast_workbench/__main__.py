@@ -76,6 +76,15 @@ def main() -> int:
         missing = config.missing_secrets()
         key_status = "尚未填写 " + "、".join(missing) if missing else "已配置（未联网验证）"
         print("服务密钥：" + key_status)
+        print(
+            "TTS 引擎："
+            + config.tts.protocol
+            + (
+                "（无需 TTS API Key，仍需联网）"
+                if not config.tts.needs_api_key
+                else "（需要 DashScope Key）"
+            )
+        )
         try:
             resolve_ffmpeg(config.app.ffmpeg_path)
             print("FFmpeg：已找到（系统命令或项目随包版本）。")

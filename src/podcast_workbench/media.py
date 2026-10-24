@@ -1,7 +1,9 @@
 """音频有效性与 FFmpeg 定位。"""
 
 import importlib
+import os
 import shutil
+import subprocess
 import wave
 from pathlib import Path
 
@@ -41,3 +43,44 @@ def wav_duration(path: Path) -> float:
             return frames / wav.getframerate()
     except (OSError, EOFError, wave.Error):
         raise ServiceError("audio_error") from None
+
+
+def normalize_audio(source: Path, target: Path, ffmpeg_path: str, max_bytes: int) -> None:
+    """将供应商音频统一为单声道 24kHz PCM WAV，并原子发布。"""
+    temporary = target.with_suffix(target.suffix + ".normalize.part")
+    try:
+        subprocess.run(
+            [
+                resolve_ffmpeg(ffmpeg_path),
+                "-nostdin",
+                "-v",
+                "error",
+                "-y",
+                "-protocol_whitelist",
+                "file,pipe",
+                "-i",
+                str(source),
+                "-ac",
+                "1",
+                "-ar",
+                "24000",
+                "-c:a",
+                "pcm_s16le",
+                "-f",
+                "wav",
+                str(temporary),
+            ],
+            check=True,
+            timeout=60,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=0x08000000 if os.name == "nt" else 0,
+        )
+        wav_duration(temporary)
+        if temporary.stat().st_size > max_bytes:
+            raise ServiceError("audio_error")
+        temporary.replace(target)
+    except (OSError, subprocess.SubprocessError):
+        raise ServiceError("audio_error") from None
+    finally:
+        temporary.unlink(missing_ok=True)

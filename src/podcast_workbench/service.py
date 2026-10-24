@@ -62,7 +62,10 @@ class WorkbenchService:
         if needs_text and not self.config.llm.api_key.get_secret_value().strip():
             raise ConfigError("请在本地 .env 填写 DEEPSEEK_API_KEY。")
         if needs_audio:
-            if not self.config.tts.api_key.get_secret_value().strip():
+            if (
+                self.config.tts.needs_api_key
+                and not self.config.tts.api_key.get_secret_value().strip()
+            ):
                 raise ConfigError("请在本地 .env 填写 DASHSCOPE_API_KEY。")
             resolve_ffmpeg(self.config.app.ffmpeg_path)
         if request.source_text and len(request.source_text) > self.config.app.max_source_chars:
@@ -84,10 +87,11 @@ class WorkbenchService:
                     raise RequestError("仅制作音频不能改变听众、风格或时长，请使用 revise。")
             session_id = session.id
         else:
+            host_voice, guest_voice = self.config.tts.default_voices()
             selected = merge_settings(
                 ProgramSettings(
-                    host_voice=self.config.tts.host_voice,
-                    guest_voice=self.config.tts.guest_voice,
+                    host_voice=host_voice,
+                    guest_voice=guest_voice,
                 ),
                 request.settings,
             )
@@ -96,6 +100,14 @@ class WorkbenchService:
             session_id = None
         if needs_audio and selected.host_voice == selected.guest_voice:
             raise RequestError("主持人与嘉宾需要选择不同音色。")
+        if needs_audio:
+            voices = (selected.host_voice, selected.guest_voice)
+            if self.config.tts.protocol == "edge_tts" and any(
+                not v.endswith("Neural") for v in voices
+            ):
+                raise RequestError("当前使用 Edge，请选择完整的 Edge 音色名称，而非千问音色。")
+            if self.config.tts.protocol == "qwen_tts" and any(v.endswith("Neural") for v in voices):
+                raise RequestError("当前使用千问，请将 Edge 音色改为 Cherry、Ethan 等千问音色。")
         asyncio.get_running_loop()
         if session_id is None:
             assert request.source_text is not None
@@ -165,6 +177,10 @@ def create_service(config: Settings, http: httpx.AsyncClient) -> WorkbenchServic
         ScriptWorkflow(
             store, PodcastGraph(config, DeepSeekClient(config.llm, http)), config.app.output_dir
         ),
-        AudioRenderer(config, create_tts_client(config.tts, http), config.app.output_dir),
+        AudioRenderer(
+            config,
+            create_tts_client(config.tts, http, config.app.ffmpeg_path),
+            config.app.output_dir,
+        ),
         EventLogger(config.app.log_dir / "agent.log"),
     )

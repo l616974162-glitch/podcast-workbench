@@ -33,17 +33,28 @@ class LLMConfig(ConfigSection):
 
 
 class TTSConfig(ConfigSection):
-    protocol: Literal["qwen_tts"]
+    protocol: Literal["qwen_tts", "edge_tts"]
     endpoint: HttpUrl
     model: str = Field(min_length=1)
     api_key: SecretStr
     host_voice: str = Field(min_length=1)
     guest_voice: str = Field(min_length=1)
+    edge_host_voice: str = "zh-CN-XiaoxiaoNeural"
+    edge_guest_voice: str = "zh-CN-YunxiNeural"
     language_type: Literal["Chinese"]
     max_text_chars: int = Field(gt=0, le=600)
     max_audio_bytes: int = Field(gt=0)
     max_segments: int = Field(default=48, gt=0, le=120)
     timeout_seconds: float = Field(gt=0, le=300)
+
+    @property
+    def needs_api_key(self) -> bool:
+        return self.protocol == "qwen_tts"
+
+    def default_voices(self) -> tuple[str, str]:
+        if self.protocol == "edge_tts":
+            return self.edge_host_voice, self.edge_guest_voice
+        return self.host_voice, self.guest_voice
 
 
 class PipelineConfig(ConfigSection):
@@ -77,9 +88,12 @@ class Settings(ConfigSection):
     app: RuntimeConfig
 
     def missing_secrets(self) -> list[str]:
-        keys = (self.llm.api_key, self.tts.api_key)
-        return [name for name, key in zip(SECRET_NAMES, keys, strict=True)
-                if not key.get_secret_value().strip()]
+        missing = []
+        if not self.llm.api_key.get_secret_value().strip():
+            missing.append("DEEPSEEK_API_KEY")
+        if self.tts.needs_api_key and not self.tts.api_key.get_secret_value().strip():
+            missing.append("DASHSCOPE_API_KEY")
+        return missing
 
 
 def _expand(value: object, environment: dict[str, str]) -> object:

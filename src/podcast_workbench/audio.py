@@ -3,8 +3,6 @@
 import asyncio
 import hashlib
 import json
-import os
-import subprocess
 import wave
 from pathlib import Path
 from time import perf_counter
@@ -12,10 +10,10 @@ from uuid import uuid4
 
 from podcast_workbench.config import Settings
 from podcast_workbench.errors import ServiceError
-from podcast_workbench.media import resolve_ffmpeg, wav_duration
+from podcast_workbench.media import normalize_audio, resolve_ffmpeg, wav_duration
 from podcast_workbench.models import Artifact, ProgramSettings, Revision
 from podcast_workbench.observability import RunContext
-from podcast_workbench.tools.base import ToolClient
+from podcast_workbench.tools.base import SpeechClient
 
 
 def split_text(text: str, limit: int) -> list[str]:
@@ -32,50 +30,16 @@ def split_text(text: str, limit: int) -> list[str]:
 
 
 class AudioRenderer:
-    def __init__(self, config: Settings, client: ToolClient, output_dir: Path) -> None:
+    def __init__(self, config: Settings, client: SpeechClient, output_dir: Path) -> None:
         self.config = config
         self.client = client
         self.output_dir = output_dir.resolve()
         self._cache_lock = asyncio.Lock()
 
     def _normalize(self, source: Path, target: Path) -> None:
-        temporary = target.with_suffix(".part")
-        try:
-            subprocess.run(
-                [
-                    resolve_ffmpeg(self.config.app.ffmpeg_path),
-                    "-nostdin",
-                    "-v",
-                    "error",
-                    "-y",
-                    "-protocol_whitelist",
-                    "file,pipe",
-                    "-i",
-                    str(source),
-                    "-ac",
-                    "1",
-                    "-ar",
-                    "24000",
-                    "-c:a",
-                    "pcm_s16le",
-                    "-f",
-                    "wav",
-                    str(temporary),
-                ],
-                check=True,
-                timeout=60,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=0x08000000 if os.name == "nt" else 0,
-            )
-            wav_duration(temporary)
-            if temporary.stat().st_size > self.config.tts.max_audio_bytes:
-                raise ServiceError("audio_error")
-            temporary.replace(target)
-        except (OSError, subprocess.SubprocessError):
-            raise ServiceError("audio_error") from None
-        finally:
-            temporary.unlink(missing_ok=True)
+        normalize_audio(
+            source, target, self.config.app.ffmpeg_path, self.config.tts.max_audio_bytes
+        )
 
     def _merge(self, paths: list[Path], target: Path) -> float:
         temporary = target.with_suffix(".part")
@@ -132,6 +96,7 @@ class AudioRenderer:
             voice = settings.host_voice if role == "host" else settings.guest_voice
             fingerprint = json.dumps(
                 {
+                    "protocol": self.config.tts.protocol,
                     "text": text,
                     "role": role,
                     "voice": voice,
@@ -187,4 +152,5 @@ class AudioRenderer:
             mime_type="audio/wav",
             duration_seconds=duration,
             audio_settings=settings,
+            tts_protocol=self.config.tts.protocol,
         )

@@ -11,7 +11,7 @@ if (-not (Test-Path -LiteralPath .env)) {
 }
 ```
 
-在本地 .env 填写 DEEPSEEK_API_KEY 和 DASHSCOPE_API_KEY。千问地址对应北京地域，密钥需匹配地域。不要把 .env 提交到 Git。FFmpeg 可用随包版本，无需另改系统 PATH。
+默认 Edge 模式只需在本地 .env 填写 DEEPSEEK_API_KEY。课程千问验收设置 TTS_PROTOCOL=qwen_tts，并填写北京地域 DASHSCOPE_API_KEY。不要把 .env 提交到 Git。FFmpeg 可用随包版本，无需另改系统 PATH。
 
 ```powershell
 & .\.venv\Scripts\python.exe -m podcast_workbench doctor
@@ -41,12 +41,12 @@ New-Item -ItemType Directory -Path data -Force | Out-Null
 @{
     action = "render_audio"
     session_id = $podcastSessionId
-    settings = @{ host_voice = "Cherry"; guest_voice = "Ethan" }
+    settings = @{ host_voice = "zh-CN-XiaoxiaoNeural"; guest_voice = "zh-CN-YunxiNeural" }
 } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath data/render-request.json -Encoding utf8
 & .\.venv\Scripts\python.exe -m podcast_workbench run --request-file data/render-request.json
 ```
 
-检查终态 succeeded、本地 WAV 存在且可打开试听、两种声音顺序正确、duration_seconds 为正。日志应有 tool 和 audio_merge 事件，不应再次调用 LLM。
+上例为 Edge 音色；千问模式将其改为 Cherry／Ethan。检查终态 succeeded、本地 WAV 可试听、两种声音顺序正确、duration_seconds 为正。日志应有当前引擎的 tool 和 audio_merge 事件，不应再次调用 LLM。
 
 ## 连续修改和音色保留
 
@@ -82,6 +82,6 @@ Get-Content -LiteralPath logs/agent.log | Select-String -SimpleMatch $podcastAcc
 & .\.venv\Scripts\python.exe -m mypy
 ```
 
-已验证自动测试 76 项；涉及供应商的测试使用网络隔离，LangGraph、SQLite、FFmpeg 和 API 集成实际执行。真实供应商鉴权、额度、音色质量及完整浏览器验收仍待用户操作。
+当前已验证自动测试 84 项；其中供应商契约测试使用网络隔离，LangGraph、SQLite、FFmpeg 和 API 集成实际执行。另已完成 9.24 秒 Edge 双人真实试音。DeepSeek／千问鉴权、完整播客内容质量及浏览器验收仍待用户操作。
 
 如果需要单独测试 HTTP 接口，先结束 CLI，再按 README 启动本地 API，用 PowerShell 或 API 客户端验收；不需要连接网页，不要同时运行两个后端进程。

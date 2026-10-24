@@ -115,6 +115,7 @@ class Artifact(Model):
     mime_type: Literal["audio/wav", "audio/mpeg", "text/plain"]
     duration_seconds: float | None = Field(default=None, gt=0)
     audio_settings: ProgramSettings | None = None
+    tts_protocol: Literal["qwen_tts", "edge_tts"] | None = None
     created_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")

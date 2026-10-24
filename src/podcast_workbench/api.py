@@ -125,9 +125,7 @@ def create_app(
         artifacts = workbench.store.list_artifacts(job.session_id) if job.revision_id else []
         return {
             **job.model_dump(mode="json"),
-            "artifacts": [
-                public_artifact(item) for item in artifacts if item.job_id == job.id
-            ],
+            "artifacts": [public_artifact(item) for item in artifacts if item.job_id == job.id],
         }
 
     @app.get("/sessions/{session_id}")
@@ -184,7 +182,11 @@ def create_app(
             "scope": "backend-preview",
             "trace_id": str(request.state.trace_id),
             "llm_configured": bool(config.llm.api_key.get_secret_value().strip()),
-            "tts_configured": bool(config.tts.api_key.get_secret_value().strip()),
+            "tts_configured": (
+                not config.tts.needs_api_key or bool(config.tts.api_key.get_secret_value().strip())
+            ),
+            "tts_protocol": config.tts.protocol,
+            "default_voices": config.tts.default_voices(),
             "ffmpeg_available": ffmpeg_available,
             "frontend_connected": False,
         }

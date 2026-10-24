@@ -2,14 +2,14 @@
 
 将中文文章或笔记制作成双人播客，支持脚本审校、多轮修改、双音色语音、播放和下载。
 
-当前版本为 **v0.1.0-backend-preview（后端第一版预览）**。三 Agent、脚本修改、语音制作、后台任务、API 和命令行入口已实现，76 项自动测试通过。用户要求前端设计确定后再对接，所以本版本不包含网页，也没有启动浏览器或建立前端连接。
+当前工作分支新增 **Edge 在线配音（默认）**，保留千问切换；原 v0.1.0-backend-preview 标签仍对应先前的千问后端版本。三 Agent、脚本修改、双引擎语音、后台任务、API 和命令行入口已实现，前端仍未连接。
 
-真实 DeepSeek／千问联调尚未进行：用户选择在验收时填写本地密钥。本版本不能当作课程完整端到端验收已通过。版本细节见[版本说明](docs/releases/v0.1.0-backend-preview.md)，操作见[后端验收步骤](docs/acceptance.md)。
+真实 DeepSeek／千问联调仍待填写密钥。Edge 已完成 9.24 秒双人真实试音，不等于完整播客端到端验收。切换方式和记录见 [Edge 配音说明](docs/edge-tts.md)；原版本细节见[版本说明](docs/releases/v0.1.0-backend-preview.md)，操作见[后端验收步骤](docs/acceptance.md)。
 
 ## 已确定的技术方向
 
 - LangGraph 编排资料整理、播客编剧、内容审校三个 Agent。
-- DeepSeek 承担文字模型调用，千问 Qwen-TTS 生成真实语音。
+- DeepSeek 承担文字模型调用；日常默认 Edge 配音，课程验收可切回千问 Qwen-TTS。
 - 默认一次生成完整节目，可选择先预览脚本。
 - FastAPI、SQLite、原生网页；完整成品成功后发布，保留旧版本。
 
@@ -39,7 +39,7 @@ if (-not (Test-Path -LiteralPath .env)) {
 uv sync --extra dev --locked
 ```
 
-本项目当前的 .venv 已创建且依赖已安装，无需重复创建。只需在本地 .env 填写两个密钥：DEEPSEEK_API_KEY、DASHSCOPE_API_KEY。无需将密钥发送到聊天中。
+本项目当前的 .venv 已创建且依赖已安装，无需重复创建。默认 Edge 模式只需本地填写 DEEPSEEK_API_KEY；千问模式另需 DASHSCOPE_API_KEY。不要将密钥发送到聊天中。
 
 本阶段已验证 LangGraph 1.2.17、FastAPI 0.162.0 可导入。完整的依赖解析版本见 uv.lock；pip 安装路径使用 pyproject.toml 声明的兼容范围，不保证与锁定文件完全相同。
 
@@ -65,7 +65,7 @@ doctor 和 check-config 均不发起网络请求、不计费。离线检查允�
 # 仅生成脚本：请求真实 DeepSeek，不请求千问 TTS。
 & .\.venv\Scripts\python.exe -m podcast_workbench run --request-file examples/create-preview.json
 
-# 生成完整节目：请求真实 DeepSeek 和千问 TTS。
+# 生成完整节目：请求真实 DeepSeek 和当前 TTS 引擎（默认 Edge）。
 & .\.venv\Scripts\python.exe -m podcast_workbench run --request-file examples/create-podcast.json
 ```
 
@@ -133,7 +133,7 @@ pipeline 适合这条固定依赖链。三个 Agent 各有独立提示词和 JSO
 
 - 图 recursion_limit=12，固定三节点，无无限审校回路。
 - 每次 LLM/TTS 请求超时 90 秒；LLM 输出最多 6000 tokens，结构不合法最多额外请求一次，HTTP 失败不自动重试。
-- 单次制作最多 48 个语音片段，单片不超过 600 字符；下载和完整音频均限制为 20 MiB。
+- 单次制作最多 48 个语音片段，单片不超过 600 字符；下载和完整音频均限制为 20 MiB。Edge 模式沿用这些项目护栏，不表示服务商官方配额。
 - 单会话一个活动任务，进程同时最多四个任务；退出等待制作完成，强制中断在下次启动标记失败。
 - 目标时长为参考；短材料优先忠实原文，实际时长由成品音频计算，不保证精确到秒。
 

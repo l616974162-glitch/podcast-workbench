@@ -8,12 +8,14 @@ llm:
   structured_output_retries: 1
 
 tts:
-  protocol: qwen_tts
+  protocol: ${TTS_PROTOCOL}
   endpoint: ${QWEN_TTS_URL}
   model: ${QWEN_TTS_MODEL}
   api_key: ${DASHSCOPE_API_KEY}
   host_voice: Cherry
   guest_voice: Ethan
+  edge_host_voice: zh-CN-XiaoxiaoNeural
+  edge_guest_voice: zh-CN-YunxiNeural
   language_type: Chinese
   max_text_chars: 600
   max_audio_bytes: 20971520
