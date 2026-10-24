@@ -10,12 +10,15 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validat
 Action = Literal["create", "revise", "render_audio"]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 Stage = Literal["queued", "researcher", "writer", "reviewer", "tts", "merge", "done", "failed"]
-ErrorCode = Literal["upstream_error", "invalid_output", "audio_error", "interrupted"]
+ErrorCode = Literal[
+    "upstream_error", "invalid_output", "audio_error", "interrupted", "internal_error",
+]
 ERROR_MESSAGES: dict[ErrorCode, str] = {
     "upstream_error": "外部服务调用失败，请检查服务配置或稍后重试。",
     "invalid_output": "生成内容未通过结构校验，请重试。",
     "audio_error": "音频制作失败，已有脚本和成品已保留。",
     "interrupted": "服务重启导致任务中断，请重新发起。",
+    "internal_error": "内部处理失败，已有结果已保留，请重试或检查本地环境。",
 }
 
 
@@ -106,6 +109,7 @@ class Message(Model):
 class Artifact(Model):
     id: UUID = Field(default_factory=uuid4)
     revision_id: UUID
+    job_id: UUID | None = None
     kind: Literal["audio", "script"]
     path: Path
     mime_type: Literal["audio/wav", "audio/mpeg", "text/plain"]

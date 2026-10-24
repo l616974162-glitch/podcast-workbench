@@ -32,9 +32,19 @@ def test_deepseek_protocol_and_json_validation(tmp_path: Path) -> None:
         assert body["response_format"] == {"type": "json_object"}
         assert body["thinking"] == {"type": "disabled"}
         assert "JSON" in body["messages"][0]["content"]
-        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
-            "content": json.dumps({"key_points": ["事实"], "outline": ["讨论"]})
-        }}]})
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps({"key_points": ["事实"], "outline": ["讨论"]})
+                        },
+                    }
+                ]
+            },
+        )
 
     async def run() -> Analysis:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
@@ -50,9 +60,14 @@ def test_invalid_json_is_bounded_to_two_attempts(tmp_path: Path) -> None:
 
     def handle(request: httpx.Request) -> httpx.Response:
         calls.append(request)
-        return httpx.Response(200, json={"choices": [{"finish_reason": "length", "message": {
-            "content": "private invalid output"
-        }}]})
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"finish_reason": "length", "message": {"content": "private invalid output"}}
+                ]
+            },
+        )
 
     async def run() -> None:
         config = load_config(ROOT / "config.yaml").llm
@@ -86,3 +101,22 @@ def test_http_failure_is_safe_and_not_automatically_retried(tmp_path: Path) -> N
     assert error.value.code == "upstream_error" and len(calls) == 1
     assert "secret-from-upstream" not in str(error.value)
 
+
+@pytest.mark.parametrize("choices", [[None], [], [{"message": None}], "invalid"])
+def test_malformed_provider_shape_is_reported_as_invalid_output(tmp_path: Path, choices) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": choices})
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
+            await DeepSeekClient(load_config(ROOT / "config.yaml").llm, http).complete(
+                "整理",
+                {},
+                Analysis,
+                context(tmp_path),
+                "researcher",
+            )
+
+    with pytest.raises(ServiceError) as error:
+        asyncio.run(run())
+    assert error.value.code == "invalid_output"

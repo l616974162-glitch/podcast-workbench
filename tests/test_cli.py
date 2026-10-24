@@ -30,7 +30,22 @@ def test_check_config_can_require_keys(
     monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     config = tmp_path / "config.yaml"
     config.write_text((ROOT / "config.yaml").read_text(encoding="utf-8"), encoding="utf-8")
-    monkeypatch.setattr(sys, "argv", ["podcast-workbench", "check-config", "--require-secrets",
-                                      "--config", str(config)])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["podcast-workbench", "check-config", "--require-secrets", "--config", str(config)],
+    )
     assert main() == 1
     assert "DEEPSEEK_API_KEY" in capsys.readouterr().err
+
+
+def test_run_requires_valid_request_file_without_echo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    request = tmp_path / "request.json"
+    request.write_text('{"action":"revise","message":"PRIVATE"}', encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["podcast-workbench", "run", "--request-file", str(request)])
+    assert main() == 1
+    assert "PRIVATE" not in capsys.readouterr().err

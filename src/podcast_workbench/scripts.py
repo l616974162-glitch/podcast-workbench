@@ -53,7 +53,8 @@ class ScriptWorkflow:
         temporary.write_text(text, encoding="utf-8")
         temporary.replace(path)
         self.store.save_artifact(Artifact(
-            revision_id=revision.id, kind="script", path=path, mime_type="text/plain",
+            revision_id=revision.id, job_id=job.id, kind="script", path=path,
+            mime_type="text/plain",
         ))
         self.store.append_message(
             session.id, "assistant", f"已生成第 {revision.number} 版：{script.title}",

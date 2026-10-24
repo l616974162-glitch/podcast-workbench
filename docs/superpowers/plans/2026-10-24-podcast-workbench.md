@@ -51,10 +51,10 @@
 
 **Interfaces:** DeepSeekClient.complete(messages, schema) 返回经模型验证的结构化结果；graph 输入包含 source_text、settings、current_script、revision_request，输出 analysis、script、review_summary。
 
-- [ ] 测试审校后脚本成为最终版本，修改输入包含原材料和当前脚本，结构化输出失败最多补偿一次，失败不继续语音流程。
-- [ ] 使用测试专用网络隔离验证 HTTP 协议、超时与错误脱敏，测试不作为验收演示材料。
-- [ ] 运行失败测试后，实现可配置提示词、真实 HTTP 客户端与 LangGraph 顺序图；设置 recursion_limit。
-- [ ] 验证每个节点都有 begin/end 或 error 日志，运行测试和静态检查后提交。
+- [x] 测试审校后脚本成为最终版本，修改输入包含原材料和当前脚本，结构化输出失败最多补偿一次，失败不继续语音流程。
+- [x] 使用测试专用网络隔离验证 HTTP 协议与错误脱敏，配置请求超时，测试不作为验收演示材料。
+- [x] 运行失败测试后，实现可配置提示词、真实 HTTP 客户端与 LangGraph 顺序图；设置 recursion_limit。
+- [x] 验证每个节点都有 begin/end 或 error 日志，运行测试和静态检查后提交。
 
 ## Task 4 千问协议与音频制作
 
@@ -62,11 +62,11 @@
 
 **Interfaces:** ToolClient.execute(text, voice) -> Artifact；QwenTTSClient._build_request 构造请求；_parse_response 下载 output.audio.url；AudioRenderer.render(script, settings) -> Artifact，返回完整节目与时长。
 
-- [ ] 测试 Bearer 请求及 model/input 字段、JSON 地址解析、缺失 URL、Content-Length 超限、无长度头流式超限、下载失败不发布产物。
-- [ ] 先观察测试失败，再实现模板方法、协议注册与受限下载；服务端错误转换为安全摘要。
-- [ ] 编写缓存测试：相同文本和音色复用；换音色失效；修改一段只重做该段；乱序下载完成仍按脚本排序；缺一段时禁止发布。
-- [ ] 观察失败后实现内容指纹缓存与 FFmpeg 格式统一、顺序合成。用测试生成的短音频验证真实拼接和时长，不依赖供应商计费。
-- [ ] 确认进程调用不经过 shell，临时文件不被当作成功产物；运行检查并提交。
+- [x] 测试 Bearer 请求及 model/input 字段、JSON 地址解析、缺失 URL、Content-Length 超限、无长度头流式超限、下载失败不发布产物。
+- [x] 先观察测试失败，再实现模板方法、协议注册与受限下载；服务端错误转换为安全摘要。
+- [x] 编写缓存测试：相同文本和音色复用；换音色失效；修改一段只重做该段；采用顺序请求，实际样本验证按脚本排序；缺一段时禁止发布。
+- [x] 观察失败后实现内容指纹缓存与 FFmpeg 格式统一、顺序合成。用测试生成的短音频验证真实拼接和时长，不依赖供应商计费。
+- [x] 确认进程调用不经过 shell，临时文件不被当作成功产物；运行检查并提交。
 
 ## Task 5 后台任务与 HTTP 接口
 
@@ -74,12 +74,14 @@
 
 **Interfaces:** POST /chat 返回 202 + job_id/session_id/trace_id；GET /jobs/{id}；GET /sessions/{id}；GET /sessions/{id}/artifacts；GET /artifacts/{id}；GET /health。
 
-- [ ] 测试创建和修改、预览不调用 TTS、render_audio 不改写脚本、422/404/409、安全错误、失败保留旧成品。
-- [ ] 运行失败测试后实现任务状态机、单会话互斥、启动时将遗留运行任务标记中断。轮询状态独立于原始 HTTP 连接。
-- [ ] 测试产物只能通过索引读取，未知 ID 不泄露路径；健康检查不暴露密钥。
-- [ ] 接入完整业务流程，跑 API 和服务测试、静态检查后提交。
+- [x] 测试创建和修改、预览不调用 TTS、render_audio 不改写脚本、422/404/409、安全错误、失败保留旧成品。
+- [x] 运行失败测试后实现任务状态机、单会话互斥、启动时将遗留运行任务标记中断。轮询状态独立于原始 HTTP 连接。
+- [x] 测试产物只能通过索引读取，未知 ID 不泄露路径；健康检查不暴露密钥。
+- [x] 接入完整业务流程，跑 API 和服务测试、静态检查后提交。
 
 ## Task 6 对话网页
+
+按用户最新要求保留：先确定前端设计，再实现界面及对接，本轮不执行。
 
 **Files:** src/podcast_workbench/static/index.html、app.js、style.css；tests/test_web_contract.py。
 
@@ -95,10 +97,10 @@
 
 **Files:** README.md、docs/acceptance.md、docs/recording-script.md；既有测试和配置。
 
-- [ ] 运行 pytest、ruff check、mypy 和 git diff --check；记录真实结果，不将网络隔离测试称为真实供应商联调。
-- [ ] 提示用户在本地 .env 填写 DeepSeek 和 DashScope 密钥；无密钥时保留待验证状态，不伪造通过。
+- [x] 运行 pytest、ruff check、mypy 和 git diff --check；记录真实结果，不将网络隔离测试称为真实供应商联调。
+- [x] 提示用户在本地 .env 填写 DeepSeek 和 DashScope 密钥；无密钥时保留待验证状态，不伪造通过。
 - [ ] 用真实材料验证默认制作、预览后制作、两轮修改、音色变更、局部复用、播放下载；保存脱敏的 trace_id 验证记录。
-- [ ] 编写安装、FFmpeg、配置、启动、浏览器地址、版本与缓存规则、编排图、护栏依据、框架差异和本机部署边界。
+- [x] 编写安装、FFmpeg、配置、CLI/API 启动（前端保留）、版本与缓存规则、编排图、护栏依据、框架差异和本机部署边界。
 - [ ] 编写四段录屏脚本和验收清单；实际成员贡献及学校报告按用户提供的信息填写，不虚构。
 - [ ] 复核 Git 不包含密钥、音频、数据库或日志；提交代码。远程推送依用户授权执行。
 

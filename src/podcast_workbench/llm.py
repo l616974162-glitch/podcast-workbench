@@ -55,7 +55,7 @@ class DeepSeekClient:
                 raise ServiceError("upstream_error") from None
             try:
                 choice = response.json()["choices"][0]
-                if choice.get("finish_reason") != "stop":
+                if not isinstance(choice, dict) or choice.get("finish_reason") != "stop":
                     raise ValueError("incomplete")
                 result = schema.model_validate_json(choice["message"]["content"])
             except (ValueError, KeyError, IndexError, TypeError, ValidationError):

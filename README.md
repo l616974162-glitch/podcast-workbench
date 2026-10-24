@@ -2,7 +2,9 @@
 
 将中文文章或笔记制作成双人播客，支持脚本审校、多轮修改、双音色语音、播放和下载。
 
-当前已完成第二阶段：项目基础、业务数据结构、SQLite 会话／任务存储与安全日志。尚无网页、制作接口或真实服务联调结果，当前不是完整第一版。
+当前版本为 **v0.1.0-backend-preview（后端第一版预览）**。三 Agent、脚本修改、语音制作、后台任务、API 和命令行入口已实现，76 项自动测试通过。用户要求前端设计确定后再对接，所以本版本不包含网页，也没有启动浏览器或建立前端连接。
+
+真实 DeepSeek／千问联调尚未进行：用户选择在验收时填写本地密钥。本版本不能当作课程完整端到端验收已通过。版本细节见[版本说明](docs/releases/v0.1.0-backend-preview.md)，操作见[后端验收步骤](docs/acceptance.md)。
 
 ## 已确定的技术方向
 
@@ -26,7 +28,9 @@
 ```powershell
 python -m venv .venv
 & .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-Copy-Item -LiteralPath .env.example -Destination .env
+if (-not (Test-Path -LiteralPath .env)) {
+    Copy-Item -LiteralPath .env.example -Destination .env
+}
 ```
 
 如果 .env 已存在，不重复复制，以免覆盖本地配置。推荐使用已提交的 uv.lock 复现本次依赖版本：
@@ -41,7 +45,7 @@ uv sync --extra dev --locked
 
 配置优先级为进程环境 > 本地 .env > 仓库 .env.example 中的非敏感默认值。config.yaml 的 api_key 只能引用指定环境变量，明文密钥将被拒绝。运行命令需在仓库根目录执行，或使用 --config 指定配置路径；运行不改变当前进程的环境变量。
 
-## 第一阶段可用命令
+## 离线检查
 
 ```powershell
 & .\.venv\Scripts\python.exe -m podcast_workbench doctor
@@ -51,7 +55,42 @@ uv sync --extra dev --locked
 
 doctor 和 check-config 均不发起网络请求、不计费。离线检查允许密钥为空；加 --require-secrets 后缺少密钥返回非零退出码，已填写也不表示真实供应商鉴权已通过。
 
-检查 FFmpeg 只验证命令是否可找到，不执行音频合成。当前 PATH 中未发现 FFmpeg。后续音频阶段前需安装 FFmpeg，或通过 FFMPEG_PATH 指向现有 ffmpeg.exe；本阶段没有自动下载二进制。
+项目依赖 imageio-ffmpeg，其常用平台的 wheel 随包提供 FFmpeg；已使用该二进制验证音频处理。查找顺序为 FFMPEG_PATH、系统 PATH、项目随包版本；不修改系统 PATH。发行方式见[依赖的官方说明](https://github.com/imageio/imageio-ffmpeg)。
+
+## 不连接网页的命令行验收
+
+填好本地 .env 后，在仓库目录运行：
+
+```powershell
+# 仅生成脚本：请求真实 DeepSeek，不请求千问 TTS。
+& .\.venv\Scripts\python.exe -m podcast_workbench run --request-file examples/create-preview.json
+
+# 生成完整节目：请求真实 DeepSeek 和千问 TTS。
+& .\.venv\Scripts\python.exe -m podcast_workbench run --request-file examples/create-podcast.json
+```
+
+示例文件仅包含输入材料，不含预制答案或音频。run 会输出两行 JSON：第一行为会话、任务和 trace 标识，第二行为最终任务及产物。脚本和 WAV 在本地 output/，日志在 logs/agent.log，数据库在 data/。命令成功退出为 0，任务失败为 1。失败可保留已有脚本和旧音频。
+
+run 支持与 POST /chat 相同的 JSON 请求；连续修改、单独制作音频和查日志的完整命令见[验收步骤](docs/acceptance.md)。CLI 和 HTTP 服务不要同时运行，数据库恢复机制按单进程设计。
+
+## 后端 API
+
+目前没有运行中的服务或网页。需要单独验收 API 时，由用户手动运行：
+
+```powershell
+& .\.venv\Scripts\python.exe -m uvicorn podcast_workbench.api:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+仅启动本地 API，不启动浏览器；未挂载静态页面、未启用 CORS，根路径和 /docs 返回 404。不要配置多 worker 或直接暴露公网。接口契约见 [API 说明](docs/api.md)，机器可读定义位于 /openapi.json。
+
+| 接口 | 用途 |
+| --- | --- |
+| POST /chat | 提交 create／revise／render_audio，返回 202 和任务标识 |
+| GET /jobs/{job_id} | 查询阶段、状态、安全错误及对应脚本版本的产物 |
+| GET /sessions/{session_id} | 恢复原材料、消息、当前脚本和上一版成功音频 |
+| GET /sessions/{session_id}/artifacts | 获取结构化产物列表，返回 URL、不返回本地路径 |
+| GET /artifacts/{artifact_id} | 音频 Range 播放或脚本读取；加 download=true 下载 |
+| GET /health | 配置与 FFmpeg 状态，不返回密钥；不表示真实鉴权已通过 |
 
 ## 接口参数核实
 
@@ -59,7 +98,7 @@ doctor 和 check-config 均不发起网络请求、不计费。离线检查允�
 
 - DeepSeek 默认使用 deepseek-flash，模型可在 .env 修改；兼容接口基础地址为 https://api.deepseek.com。来源：[官方模型列表](https://api-docs.deepseek.com/quick_start/pricing/)。
 - 千问保持任务书指定的 qwen3-tts-flash，使用北京地域的 multimodal-generation/generation 接口，Bearer 鉴权，请求 input 中包含 text、voice、language_type；返回 output.audio.url，有效期 24 小时。来源：[官方 API](https://help.aliyun.com/zh/model-studio/qwen-tts-api)。
-- 千问每次输入最多 600 字符，配置限制不能超过此值；长脚本后续分段处理。默认角色音色为 Cherry 和 Ethan，语言为 Chinese。来源：[官方音色列表](https://www.alibabacloud.com/help/en/model-studio/qwen-tts-voice-list)。
+- 千问每次输入最多 600 字符，脚本已按此分段。默认角色音色为 Cherry 和 Ethan，语言为 Chinese。来源：[官方音色列表](https://www.alibabacloud.com/help/en/model-studio/qwen-tts-voice-list)。
 - 输入材料上限 20,000 字符、下载音频上限 20 MiB 是本项目的保护参数，不是供应商额度或容量承诺。
 
 模型权限、服务额度、音色实际效果仍需后续真实调用验证。新版本服务不自动替换任务书指定的 TTS 协议。
@@ -74,7 +113,31 @@ doctor 和 check-config 均不发起网络请求、不计费。离线检查允�
 
 [开发进度](docs/progress.md)记录用户确认的八阶段顺序和逐阶段验证结果。[第一版发布清单](docs/release-checklist.md)记录用户授权的远程发布条件和备注要求。
 
-## 第二阶段数据能力
+## 编排与护栏
+
+```mermaid
+flowchart LR
+    I[原文与设置] --> A[资料整理 Agent]
+    A --> B[播客编剧 Agent]
+    B --> C[内容审校 Agent]
+    C --> S[保存脚本快照]
+    S --> P{仅预览?}
+    P -->|是| R[等待后续操作]
+    P -->|否| T[Qwen-TTS 分角色合成]
+    R -->|render_audio| T
+    T --> F[FFmpeg 统一格式]
+    F --> M[按脚本顺序拼接并发布]
+```
+
+pipeline 适合这条固定依赖链。三个 Agent 各有独立提示词和 JSON 输出校验，审校稿才成为最终脚本。纯音色调整跳过 LLM。角色不是三个聊天标签，而是三个实际模型调用节点。
+
+- 图 recursion_limit=12，固定三节点，无无限审校回路。
+- 每次 LLM/TTS 请求超时 90 秒；LLM 输出最多 6000 tokens，结构不合法最多额外请求一次，HTTP 失败不自动重试。
+- 单次制作最多 48 个语音片段，单片不超过 600 字符；下载和完整音频均限制为 20 MiB。
+- 单会话一个活动任务，进程同时最多四个任务；退出等待制作完成，强制中断在下次启动标记失败。
+- 目标时长为参考；短材料优先忠实原文，实际时长由成品音频计算，不保证精确到秒。
+
+## 数据与安全边界
 
 - 创建材料会话，保存节目设置和消息；重新打开 SQLite 后仍可读取。
 - 脚本按版本号保存独立快照，任务与产物关联明确的版本。
@@ -82,7 +145,7 @@ doctor 和 check-config 均不发起网络请求、不计费。离线检查允�
 - 新版失败不覆盖旧音频，音频元数据记录实际音色；发布时验证会话、版本及文件存在性。
 - JSONL 日志只允许受控字段，不保存原始供应商响应与异常文本。
 
-使用示例（模块级能力，目前没有 HTTP 接口）：
+模块级使用示例：
 
 ```python
 from pathlib import Path
@@ -95,4 +158,14 @@ session = store.get_session(session_id)
 print(session.id, session.settings.target_minutes)
 ```
 
-注意：数据库包含原文和会话内容，虽然被 Git 忽略，仍是本地用户数据；需要自行妥善保管。产物内部索引包含本地路径，后续 API 必须转换为产物 URL，不能直接把内部模型返回浏览器。发布索引的文件检查不代表音频完整性验证，完整性检查将在音频阶段实现。
+数据库包含原文和会话内容，虽然被 Git 忽略，仍需妥善保管。API 已将产物路径转换为索引 URL，禁止读取 output/ 之外的文件；WAV 下载和拼接均检查可解码性及完整帧数。音频片段按文本、角色、音色、模型、语言、服务地址及规范化格式指纹复用，缓存命中事件不会冒充供应商调用。
+
+日志只记录受控事件、标识、阶段、耗时和安全错误分类，不保存密钥、材料、签名音频 URL 或供应商异常正文。测试使用临时数据和网络隔离；生产路径只调用真实供应商，没有假服务器或预制输出回退。
+
+## 后续工作
+
+1. 用户本地填密钥，按验收步骤核实真实调用、额度、音色、时长和内容质量。
+2. 确定前端设计后再开发网页并对接，验证多轮交互及 422／502 提示。
+3. 完成浏览器真实验收、6–8 分钟录屏、实际成员分工和学校模板报告。
+
+阶段自查记录见[后端审核](docs/backend-review.md)。目前不包含联网选题、文件上传、背景音乐、音色克隆、生图、账号或自动平台发布。

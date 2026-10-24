@@ -198,3 +198,59 @@ def test_missing_segment_prevents_final_program(tmp_path: Path) -> None:
     with pytest.raises(ServiceError):
         asyncio.run(run())
     assert not any(path.parent.name != ".cache" for path in (tmp_path / "output").glob("*/*.wav"))
+
+
+@pytest.mark.parametrize("mode", ["redirect", "truncated"])
+def test_redirect_or_truncated_audio_is_never_published(tmp_path: Path, mode: str) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "output": {
+                        "audio": {"url": "https://result.oss-cn-beijing.aliyuncs.com/file.wav"}
+                    }
+                },
+            )
+        if mode == "redirect":
+            return httpx.Response(302, headers={"Location": "http://127.0.0.1/private"})
+        return httpx.Response(200, content=wav_bytes()[:-100])
+
+    async def run():
+        config = load_config(ROOT / "config.yaml")
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
+            await create_tts_client(config.tts, http).execute(
+                "测试",
+                "Cherry",
+                tmp_path / "out.wav",
+                uuid4(),
+                ProgramSettings(),
+                context(tmp_path),
+            )
+
+    with pytest.raises(ServiceError):
+        asyncio.run(run())
+    assert not (tmp_path / "out.wav").exists()
+
+
+@pytest.mark.parametrize("payload", [{}, {"output": {"audio": {}}}])
+def test_missing_audio_url_is_safe(tmp_path: Path, payload: dict) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        return httpx.Response(200, json=payload)
+
+    async def run():
+        config = load_config(ROOT / "config.yaml")
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
+            await create_tts_client(config.tts, http).execute(
+                "测试",
+                "Cherry",
+                tmp_path / "out.wav",
+                uuid4(),
+                ProgramSettings(),
+                context(tmp_path),
+            )
+
+    with pytest.raises(ServiceError):
+        asyncio.run(run())
+    assert not (tmp_path / "out.wav").exists()

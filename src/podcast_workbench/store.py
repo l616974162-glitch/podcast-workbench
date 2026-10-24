@@ -240,7 +240,11 @@ class Store:
 
     def save_artifact(self, artifact: Artifact) -> None:
         with self._connection(write=True) as conn:
-            self._load(conn, "revisions", artifact.revision_id, Revision)
+            revision = self._load(conn, "revisions", artifact.revision_id, Revision)
+            if artifact.job_id is not None:
+                job = self._load(conn, "jobs", artifact.job_id, Job)
+                if job.session_id != revision.session_id or job.revision_id != revision.id:
+                    raise StateConflictError("产物必须关联其制作任务的脚本版本。")
             try:
                 conn.execute("INSERT INTO artifacts VALUES(?,?,?)", (
                     str(artifact.id), str(artifact.revision_id), artifact.model_dump_json(),
@@ -263,8 +267,14 @@ class Store:
                 raise StateConflictError("音频必须对应本会话当前脚本版本。")
             if not artifact.path.is_file() or artifact.path.stat().st_size == 0:
                 raise StateConflictError("音频文件不存在或未完成。")
-            conn.execute("UPDATE sessions SET published_audio_id=? WHERE id=?", (
-                str(artifact_id), str(session_id),
+            assert artifact.audio_settings is not None
+            selected = ProgramSettings.model_validate_json(session["settings_json"])
+            selected = selected.model_copy(update={
+                "host_voice": artifact.audio_settings.host_voice,
+                "guest_voice": artifact.audio_settings.guest_voice,
+            })
+            conn.execute("UPDATE sessions SET published_audio_id=?,settings_json=? WHERE id=?", (
+                str(artifact_id), selected.model_dump_json(), str(session_id),
             ))
 
     def list_artifacts(self, session_id: Id) -> list[Artifact]:
