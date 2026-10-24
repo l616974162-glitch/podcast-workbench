@@ -22,15 +22,17 @@
 
 ## Task 1 配置和输入模型
 
+执行顺序更新：用户后续确认的八阶段中，第一阶段仅做基础与配置，业务输入模型移到第二阶段。第一阶段结果见 ../../progress.md；下列输入模型相关工作仍未完成，不将其计入本阶段成果。
+
 **Files:** pyproject.toml、config.yaml、.env.example、.gitignore、src/podcast_workbench/config.py、models.py；tests/test_models.py、test_config.py。
 
 **Interfaces:** ChatRequest(action, session_id, message, source_text, settings, preview_only)；ProgramSettings(audience, style, target_minutes, host_voice, guest_voice)；Settings 保存解析后的环境与 YAML 配置。
 
-- [ ] 核实供应商当前模型名、千问请求参数、音色和限制，将核实结果与来源写入 README。检查 Python 和 FFmpeg，不擅自下载未知二进制。
-- [ ] 创建最小 Python 项目和开发依赖，忽略 .env、.venv、output、logs、SQLite 文件、缓存。
+- [x] 核实供应商当前模型名、千问请求参数、音色和限制，将核实结果与来源写入 README。检查 Python 和 FFmpeg，不擅自下载未知二进制。
+- [x] 创建最小 Python 项目和开发依赖，忽略 .env、.venv、output、logs、SQLite 文件、缓存。
 - [ ] 编写模型测试：空白材料、超长材料、非法时长、无 session_id 的修改必须拒绝；合法设置保留用户值。配置测试验证环境引用与缺失密钥错误不暴露值。
 - [ ] 运行 pytest tests/test_models.py tests/test_config.py，确认失败来自待实现行为；实现 Pydantic 验证及环境解析，重跑通过。
-- [ ] 运行 ruff check 和 mypy，提交本任务文件。
+- [x] 运行阶段 1 配置与 CLI 的 10 项测试、ruff check 和 mypy，保存本地提交；业务输入模型留到阶段 2。
 
 ## Task 2 会话和任务存储
 

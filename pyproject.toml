@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "podcast-workbench"
+version = "0.1.0"
+description = "基于 LangGraph、DeepSeek 和 Qwen-TTS 的双人播客工作台"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "langgraph>=1,<2",
+  "pydantic>=2.10,<3",
+  "httpx>=0.28,<1",
+  "PyYAML>=6,<7",
+  "python-dotenv>=1,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2", "types-PyYAML>=6,<7"]
+
+[project.scripts]
+podcast-workbench = "podcast_workbench.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/podcast_workbench"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+strict = true
