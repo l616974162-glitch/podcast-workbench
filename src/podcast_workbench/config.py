@@ -42,6 +42,7 @@ class TTSConfig(ConfigSection):
     language_type: Literal["Chinese"]
     max_text_chars: int = Field(gt=0, le=600)
     max_audio_bytes: int = Field(gt=0)
+    max_segments: int = Field(default=48, gt=0, le=120)
     timeout_seconds: float = Field(gt=0, le=300)
 
 

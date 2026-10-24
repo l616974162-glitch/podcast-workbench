@@ -21,6 +21,7 @@ class _Record(BaseModel):
         "run.start", "run.end", "run.error", "node.start", "node.end", "node.error",
         "llm.start", "llm.end", "llm.error", "tool.start", "tool.end", "tool.error",
         "audio_merge.start", "audio_merge.end", "audio_merge.error",
+        "cache.hit",
     ]
     trace_id: UUID
     session_id: UUID

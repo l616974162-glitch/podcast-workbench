@@ -17,6 +17,7 @@ tts:
   language_type: Chinese
   max_text_chars: 600
   max_audio_bytes: 20971520
+  max_segments: 48
   timeout_seconds: 90
 
 pipeline:
